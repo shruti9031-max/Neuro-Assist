@@ -97,7 +97,7 @@ export class NeuroVoiceEngine {
     this.safeStorageGet(["voiceEngineListening"], (result) => {
       if (result && result.voiceEngineListening === true) {
         console.log("🎙️ Restoring voice listening state from storage.");
-        this.toggleVoiceSystem(true);
+        this.toggleVoiceSystem(true, true);
       }
     });
   }
@@ -106,10 +106,12 @@ export class NeuroVoiceEngine {
     try {
       if (typeof chrome !== "undefined" && chrome.runtime && chrome.runtime.onMessage) {
         chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+          console.log("DEBUG [voiceEngine.ts] onMessage received message type:", message.type, message);
           if (message.type === "GET_VOICE_STATE") {
             sendResponse({ isListening: this.isListening });
           } else if (message.type === "TOGGLE_VOICE_SYSTEM") {
-            this.toggleVoiceSystem(message.state);
+            console.log("DEBUG [voiceEngine.ts] TOGGLE_VOICE_SYSTEM state:", message.state);
+            this.toggleVoiceSystem(message.state, false);
             sendResponse({ isListening: this.isListening });
           } else if (message.type === "VOICE_COMMAND_INTERIM") {
             this.showVoiceStatusOverlay(`🎙️ Spoken: <strong>${message.transcript}...</strong>`, true);
@@ -117,9 +119,10 @@ export class NeuroVoiceEngine {
             console.log("🎙️ Stage 4: Received voice command message from background/offscreen:", message.command);
             this.showVoiceStatusOverlay(`🎙️ Spoken: <strong>${message.command}</strong>`, false);
             if (this.isListening && !this.isSpeaking) {
+              console.log("DEBUG [voiceEngine.ts] isListening is true, isSpeaking is false. Processing command...");
               this.processCommand(message.command);
             } else {
-              console.warn("🎙️ Content Script: Ignored command because isListening is false or isSpeaking is true.");
+              console.warn(`🎙️ Content Script: Ignored command because isListening is ${this.isListening} or isSpeaking is ${this.isSpeaking}.`);
             }
           } else if (message.type === "SIMULATE_VOICE_COMMAND") {
             console.log("🎙️ Received simulated voice command message:", message.command);
@@ -130,7 +133,16 @@ export class NeuroVoiceEngine {
             this.speakResponse("Microphone access is not allowed. Please grant permission in the opened tab.");
           } else if (message.type === "VOICE_PERMISSION_GRANTED") {
             console.log("🎙️ Microphone permission granted. Activating engine.");
-            this.toggleVoiceSystem(true);
+            this.toggleVoiceSystem(true, false);
+          } else if (message.type === "VOICE_STATE_CHANGED") {
+            console.log("DEBUG [voiceEngine.ts] VOICE_STATE_CHANGED:", message.isListening);
+            this.isListening = message.isListening;
+            if (message.isListening) {
+              this.isSpeaking = false;
+              this.showVoiceStatusOverlay("🎙️ Neuro Voice: Listening...", false);
+            } else {
+              this.hideVoiceStatusOverlay();
+            }
           }
           return true;
         });
@@ -148,17 +160,22 @@ export class NeuroVoiceEngine {
   // Public toggle
   // ──────────────────────────────────────────
 
-  public toggleVoiceSystem(state: boolean) {
+  public toggleVoiceSystem(state: boolean, silent: boolean = false) {
+    console.log("DEBUG [voiceEngine.ts] toggleVoiceSystem called with state:", state, "current isListening:", this.isListening);
     if (state && !this.isListening) {
       this.isListening = true;
       this.setListeningState(true);
+      console.log("DEBUG [voiceEngine.ts] sending TOGGLE_VOICE_RECOGNITION true to background");
       this.safeSendMessage({ type: "TOGGLE_VOICE_RECOGNITION", state: true });
       console.log("🎙️ Live Voice Navigation Activated.");
-      this.speakResponse("Voice engine activated.");
+      if (!silent) {
+        this.speakResponse("Voice engine activated.");
+      }
       this.showVoiceStatusOverlay("🎙️ Neuro Voice: Listening...", false);
     } else if (!state && this.isListening) {
       this.isListening = false;
       this.setListeningState(false);
+      console.log("DEBUG [voiceEngine.ts] sending TOGGLE_VOICE_RECOGNITION false to background");
       this.safeSendMessage({ type: "TOGGLE_VOICE_RECOGNITION", state: false });
       console.log("🎙️ Live Voice Navigation Deactivated.");
       this.speakResponse("Voice engine deactivated.");
@@ -189,7 +206,14 @@ export class NeuroVoiceEngine {
     } catch (err) {
       console.warn("🎙️ Stage 5 (NLU/Resolver): Backend unreachable — using local fallback:", err);
       response = this.localFallback(command);
-      console.log("🎙️ Stage 5 (NLU/Resolver): Local fallback parser resolved:", response);
+    }
+
+    if (!response || response.action === "unknown") {
+      const fallback = this.localFallback(command);
+      if (fallback && fallback.action !== "unknown") {
+        response = fallback;
+        console.log("🎙️ Stage 5 (NLU/Resolver): Backend returned unknown, using local fallback parser resolved:", response);
+      }
     }
 
     if (!response) {
@@ -365,6 +389,55 @@ export class NeuroVoiceEngine {
           console.log("🎙️ Stage 7 (DOM/Browser Interaction): Opening website:", url);
           window.location.href = url;
         }
+        break;
+
+      case "click_video":
+      case "play_video":
+        console.log("🎙️ Stage 7 (DOM/Browser Interaction): Executing play_video.");
+        const videoElPlay = document.querySelector('video') as HTMLVideoElement | null;
+        if (videoElPlay && window.location.href.includes("/watch")) {
+          videoElPlay.play();
+          console.log("🎙️ Stage 7: Native video.play() executed successfully.");
+        } else {
+          const firstVideo = document.querySelector('a#video-title, a[href*="/watch?v="]') as HTMLElement | null;
+          if (firstVideo && !window.location.href.includes("/watch")) {
+            firstVideo.scrollIntoView({ behavior: "smooth", block: "center" });
+            firstVideo.click();
+          } else {
+            const playButton = document.querySelector('.ytp-play-button, .play, [aria-label*="Play" i], button[title*="Play" i]') as HTMLElement | null;
+            if (playButton) {
+              playButton.click();
+            } else {
+              this.speakResponse("Could not find any video or play button to click.");
+            }
+          }
+        }
+        break;
+
+      case "pause_video":
+        console.log("🎙️ Stage 7 (DOM/Browser Interaction): Executing pause_video.");
+        const videoElPause = document.querySelector('video') as HTMLVideoElement | null;
+        if (videoElPause && window.location.href.includes("/watch")) {
+          videoElPause.pause();
+          console.log("🎙️ Stage 7: Native video.pause() executed successfully.");
+        } else {
+          const pauseButton = document.querySelector('.ytp-play-button, .pause, [aria-label*="Pause" i], button[title*="Pause" i]') as HTMLElement | null;
+          if (pauseButton) {
+            pauseButton.click();
+          } else {
+            this.speakResponse("Could not find any pause button to click.");
+          }
+        }
+        break;
+
+      case "stop_listening":
+        console.log("🎙️ Stage 7 (DOM/Browser Interaction): Stopping voice recognition.");
+        this.toggleVoiceSystem(false, false);
+        break;
+
+      case "close_tab":
+        console.log("🎙️ Stage 7 (DOM/Browser Interaction): Closing current tab.");
+        chrome.runtime.sendMessage({ type: "CLOSE_ACTIVE_TAB" });
         break;
 
       case "search_web_query":
@@ -601,6 +674,24 @@ export class NeuroVoiceEngine {
   private localFallback(command: string): VoiceCommandResponse {
     const cmd = command.toLowerCase().trim();
 
+    if (cmd === "stop listening" || cmd.startsWith("stop listening") || cmd === "deactivate voice" || cmd === "shut up" || cmd === "band karo") {
+      return { action: "stop_listening", value: "stop", speak: "Stopping voice assistant" };
+    }
+    if (cmd === "pause" || cmd === "stop" || cmd.startsWith("pause ") || cmd.startsWith("stop ") || cmd === "pause video" || cmd === "stop video" || cmd === "video roko" || cmd === "video pause" || cmd === "ruk jao") {
+      return { action: "pause_video", value: "pause", speak: "Pausing video" };
+    }
+    if (cmd === "close" || cmd === "close tab" || cmd === "close website" || cmd === "close window" || cmd === "tab band karo" || cmd.startsWith("close ") || cmd.startsWith("close tab ") || cmd.startsWith("close website ")) {
+      return { action: "close_tab", value: "current", speak: "Closing current tab" };
+    }
+
+    if (cmd.startsWith("play ") || cmd.startsWith("play song ")) {
+      const songName = cmd.replace("play song ", "").replace("play ", "").trim();
+      return { action: "click_link", value: songName, speak: "Playing " + songName };
+    }
+    if (cmd === "play" || cmd === "play song") {
+      return { action: "click_video", value: "first", speak: "Playing the first video" };
+    }
+
     if (cmd.startsWith("open ") || cmd.startsWith("go to ")) {
       const target = cmd.replace("open ", "").replace("go to ", "").trim();
       return { action: "open_website", value: target, speak: "Opening website " + target };
@@ -613,8 +704,14 @@ export class NeuroVoiceEngine {
     if (cmd.includes("fill form") || cmd.includes("autofill") || cmd.includes("form bharo") || cmd.includes("fill application") || cmd.includes("fill details")) {
       return { action: "autofill_form", value: cmd, speak: "Scanning form and generating predictions" };
     }
-    if (cmd.includes("add to cart") || cmd.includes("buy now") || cmd.includes("proceed to checkout") || cmd.includes("checkout")) {
-      return { action: "autonomous_navigate", value: cmd, speak: "Executing autonomous navigation" };
+    if (cmd === "add" || cmd === "add product" || cmd.includes("add to cart") || cmd.includes("add to bag") || cmd.includes("add to basket")) {
+      return { action: "click_button", value: "add to cart", speak: "Adding item to cart" };
+    }
+    if (cmd.includes("buy now")) {
+      return { action: "click_button", value: "buy now", speak: "Buying now" };
+    }
+    if (cmd.includes("proceed to checkout") || cmd.includes("checkout") || cmd.includes("place order")) {
+      return { action: "click_button", value: "checkout", speak: "Proceeding to checkout" };
     }
 
     if (cmd.includes("scroll down") || cmd.includes("niche jao") || cmd.includes("niche scroll")) {
@@ -725,24 +822,8 @@ export class NeuroVoiceEngine {
   // ──────────────────────────────────────────
 
   private speakResponse(text: string) {
-    if (!this.ttsEnabled || !window.speechSynthesis) return;
+    if (!this.ttsEnabled) return;
 
-    const wasListening = this.isListening;
-    this.isSpeaking = true;
-
-    // Temporarily halt recognition to avoid microphone feedback loops
-    if (wasListening) {
-      this.safeSendMessage({
-        type: "TOGGLE_VOICE_RECOGNITION",
-        state: false,
-        temporary: true
-      });
-    }
-
-    window.speechSynthesis.cancel();
-
-    const utterance = new SpeechSynthesisUtterance(text);
-    
     // Automatically detect synthesis language locale
     let matchedLang = "en-US";
     const lowercaseText = text.toLowerCase();
@@ -767,38 +848,14 @@ export class NeuroVoiceEngine {
     else if (/[\u0980-\u09FF]/.test(text)) {
       matchedLang = "bn-IN";
     }
-    
-    utterance.lang = matchedLang;
-    utterance.rate = 1.0;
-    utterance.pitch = 1.0;
-    utterance.volume = 0.9;
 
-    const voices = window.speechSynthesis.getVoices();
-    const preferred = voices.find(
-      (v) =>
-        v.lang.startsWith(matchedLang.split("-")[0]) &&
-        (v.name.includes("Google") ||
-          v.name.includes("Natural") ||
-          v.name.includes("Female") ||
-          v.name.includes("Local"))
-    );
-    if (preferred) utterance.voice = preferred;
-
-    const resume = () => {
-      this.isSpeaking = false;
-      if (wasListening && this.isListening) {
-        this.safeSendMessage({
-          type: "TOGGLE_VOICE_RECOGNITION",
-          state: true,
-          temporary: true
-        });
-      }
-    };
-
-    utterance.onend = resume;
-    utterance.onerror = resume;
-
-    window.speechSynthesis.speak(utterance);
+    this.isSpeaking = true;
+    console.log("🎙️ Requesting background to speak via chrome.tts:", text, "lang:", matchedLang);
+    this.safeSendMessage({
+      type: "SPEAK",
+      text: text,
+      lang: matchedLang
+    });
   }
 
   private resumeListeningIfNeeded() {

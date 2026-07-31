@@ -1,11 +1,16 @@
+from __future__ import annotations
 import os
 import logging
 from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from typing import List, Optional, Dict, Any
 
 logger = logging.getLogger("neuro-assist-backend")
 router = APIRouter(prefix="/api/copilot", tags=["copilot"])
+
+# ==========================================
+# 1. Pydantic Models
+# ==========================================
 
 class FormField(BaseModel):
     id: str = ""
@@ -17,7 +22,7 @@ class FormField(BaseModel):
     semanticRole: Optional[str] = ""
     context: Optional[str] = ""
     confidence: Optional[float] = 0.0
-    options: Optional[List[str]] = []
+    options: Optional[List[str]] = Field(default_factory=list)
     required: Optional[bool] = False
     isFileUpload: Optional[bool] = False
     isPaymentField: Optional[bool] = False
@@ -50,13 +55,23 @@ class AutonomousNavRequest(BaseModel):
 
 class AutonomousNavResponse(BaseModel):
     action: str = "plan"
-    plan: List[ActionStep] = []
+    plan: List[ActionStep] = Field(default_factory=list)
     message: str = ""
 
 class ChatRequest(BaseModel):
     message: str
     context: Optional[str] = ""
 
+CopilotFillRequest.model_rebuild()
+CopilotFillResponse.model_rebuild()
+CopilotLogRequest.model_rebuild()
+AutonomousNavRequest.model_rebuild()
+AutonomousNavResponse.model_rebuild()
+ChatRequest.model_rebuild()
+
+# ==========================================
+# 2. Helper Functions
+# ==========================================
 
 def local_fallback_fill(fields: List[FormField], user_prompt: str, user_profile: Optional[Dict[str, Any]] = None) -> CopilotFillResponse:
     logger.info("Using local fallback rule-based form autofiller with user profile memory.")
@@ -129,6 +144,11 @@ def local_fallback_fill(fields: List[FormField], user_prompt: str, user_profile:
             
     return CopilotFillResponse(form_purpose="Web Form", predictions=predictions)
 
+
+# ==========================================
+# 3. API Endpoints
+# ==========================================
+
 @router.post("/autofill", response_model=CopilotFillResponse)
 async def autofill_form(request: CopilotFillRequest):
     """Generates context-aware form autofill values mapped against user profile memory."""
@@ -138,7 +158,7 @@ async def autofill_form(request: CopilotFillRequest):
         return CopilotFillResponse(form_purpose="Empty Form", predictions={})
         
     try:
-        from services.gemini_service import gemini_service
+        from routers.voice import gemini_service
         fields_list = [f.model_dump() for f in request.fields]
         predictions = await gemini_service.parse_copilot_autofill(
             fields=fields_list,
@@ -158,7 +178,7 @@ async def autonomous_navigate(request: AutonomousNavRequest):
     """Parses autonomous web navigation goal into executable DOM action plan."""
     logger.info(f"Received autonomous navigation instruction: '{request.instruction}'")
     try:
-        from services.gemini_service import gemini_service
+        from routers.voice import gemini_service
         action_res = await gemini_service.parse_autonomous_navigation(
             instruction=request.instruction,
             page_context=request.page_context,
@@ -170,7 +190,6 @@ async def autonomous_navigate(request: AutonomousNavRequest):
     except Exception as e:
         logger.error(f"Error parsing autonomous navigation with Gemini: {e}")
         
-    # Rule-based fallback action planner
     inst = request.instruction.lower()
     plan: List[ActionStep] = []
     
@@ -238,13 +257,12 @@ async def receive_copilot_logs(log: CopilotLogRequest):
     logger.info(f"📋 Audit Log [{log.stage}]: {log.details} (URL: {log.url})")
     return {"status": "logged", "stage": log.stage}
 
-
 @router.post("/chat")
 async def chat_endpoint(request: ChatRequest):
     """Handles conversational AI chat and automated accessibility adjustments."""
     logger.info(f"Received chat message: '{request.message}'")
     try:
-        from services.gemini_service import gemini_service
+        from routers.voice import gemini_service
         result = await gemini_service.chat_with_copilot(request.message, request.context)
         return result
     except Exception as e:

@@ -17,7 +17,10 @@ from pydantic import BaseModel
 from dotenv import load_dotenv
 from google import genai
 from google.genai import types
+from google.genai.errors import APIError
+from routers.voice import router as voice_router
 from routers.copilot import router as copilot_router
+from routers.checkout import checkout_router
 
 # Load environment variables
 from pathlib import Path
@@ -39,7 +42,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+app.include_router(voice_router)
 app.include_router(copilot_router)
+app.include_router(checkout_router)
 
 class SimplifyRequest(BaseModel):
     texts: List[str]
@@ -360,7 +365,7 @@ async def chat_legacy_endpoint(request: ChatRequest):
     """Handles chat messages and returns AI response with optional settings."""
     logger.info(f"Received chat message on /api/chat: '{request.message}'")
     try:
-        from services.gemini_service import gemini_service
+        from routers.voice import gemini_service
         result = await gemini_service.chat_with_copilot(request.message, request.context)
         return result
     except Exception as e:

@@ -5,6 +5,8 @@ import logging
 import asyncio
 from google import genai
 from google.genai import types
+from models.voice_models import PageContext, VoiceCommandResponse
+from services.command_parser import local_fallback_parser, checkout_state_dispatcher, _is_shopping_intent, check_open_website_command
 
 logger = logging.getLogger("neuro-assist-backend")
 
@@ -35,12 +37,155 @@ class GeminiService:
         if not self.api_key:
             logger.warning("GEMINI_API_KEY environment variable is not set. Falling back to local rule-based parsing.")
             self.client = None
+        else:
             try:
                 self.client = genai.Client(api_key=self.api_key)
                 logger.info("Gemini Service initialized successfully.")
             except Exception as e:
                 logger.error(f"Failed to initialize Gemini Client: {e}")
                 self.client = None
+
+    async def parse_voice_command(self, command: str, page_context: PageContext = None) -> VoiceCommandResponse:
+        # ── Open Website Pre-parser ──
+        # Intercepts commands like "open myntra", "open flipkart", "open wikipedia"
+        # and resolves them instantly to a VoiceCommandResponse.
+        open_site_result = check_open_website_command(command)
+        if open_site_result is not None:
+            logger.info(
+                f"Open website resolver matched: '{command}' -> "
+                f"action='{open_site_result.action}', value='{open_site_result.value}'"
+            )
+            return open_site_result
+
+        # ── Shopping / checkout state machine runs FIRST ─────────────────────
+        # If the command is a shopping intent and page_context has button/link
+        # labels, the dispatcher returns the exact click_button action without
+        # calling Gemini at all. This is faster, free, and 100% deterministic.
+        dispatcher_result = checkout_state_dispatcher(command, page_context)
+        if dispatcher_result is not None:
+            logger.info(
+                f"Checkout dispatcher resolved: '{command}' -> "
+                f"action='{dispatcher_result.action}', value='{dispatcher_result.value}'"
+            )
+            return dispatcher_result
+
+        if not self.client:
+            return local_fallback_parser(command)
+
+        # ── CRITICAL GUARD: block LLM form-autofill for shopping intents ─────
+        # The dispatcher already ran above. If it returned None it means either:
+        #   (a) page_context had no useful buttons/links, or
+        #   (b) the command was a noisy transcription variant (e.g. "by" for "buy")
+        # In both cases the command is still a shopping intent and must NEVER be
+        # sent to Gemini, which would misinterpret it as a form-autofill request.
+        # We check both the raw command and a lowercased strip of it to handle
+        # minor transcription noise (extra spaces, trailing punctuation, etc.).
+        _cmd_clean = command.lower().strip().rstrip(".,?!")
+        if _is_shopping_intent(command) or _is_shopping_intent(_cmd_clean):
+            logger.warning(
+                f"Shopping intent guard triggered for '{command}' — "
+                "dispatcher found no matching button. Returning actionable speak."
+            )
+            return VoiceCommandResponse(
+                action="unknown",
+                value=None,
+                speak=(
+                    "I couldn't find that specific product or button on the screen. "
+                    "Please scroll a bit to make sure it is visible and try again."
+                ),
+            )
+
+        ctx_parts = []
+        if page_context:
+            pc = page_context
+            if pc.url:              ctx_parts.append(f"Page URL: {pc.url}")
+            if pc.title:            ctx_parts.append(f"Page Title: {pc.title}")
+            if pc.selected_text:    ctx_parts.append(f"User Selected Text: {pc.selected_text}")
+            if pc.visible_headings: ctx_parts.append(f"Visible Headings: {', '.join(pc.visible_headings[:8])}")
+            if pc.visible_buttons:  ctx_parts.append(f"Visible Buttons: {', '.join(pc.visible_buttons[:12])}")
+            if pc.visible_links:    ctx_parts.append(f"Visible Links: {', '.join(pc.visible_links[:12])}")
+            if pc.visible_forms:    ctx_parts.append(f"Visible Form Fields: {', '.join(pc.visible_forms[:8])}")
+            if pc.text_snippet:     ctx_parts.append(f"Page Text Snippet: {pc.text_snippet[:400]}")
+        context_block = "\n".join(ctx_parts) if ctx_parts else "No page context available."
+
+        system_instruction = (
+            "You are a smart browser accessibility voice assistant. "
+            "The user speaks commands in English, Hinglish, Punjabi, Hindi, Tamil, Telugu, Bengali, or other languages. "
+            "1. Auto-detect the language the user is speaking in. "
+            "2. Translate and interpret the user's voice command into a single browser action. "
+            "3. Generate the response spoken confirmation message (in the 'speak' field) IN THE EXACT SAME LANGUAGE the user used. "
+            "If they speak in Hindi, speak back in Hindi. If they speak Punjabi, speak back in Punjabi. "
+            "Otherwise respond in English.\n\n"
+            "SUPPORTED ACTIONS:\n"
+            "1. scroll_up, 2. scroll_down, 3. scroll_top, 4. scroll_bottom, 5. click_button, 6. click_link, "
+            "7. go_back, 8. go_forward, 9. refresh_page, 10. zoom_in, 11. zoom_out, 12. open_accessibility_dock, "
+            "13. close_accessibility_dock, 14. simplify_website, 15. dark_mode, 16. light_mode, 17. read_selected_text, "
+            "18. stop_speaking, 19. increase_font, 20. decrease_font, 21. highlight_headings, 22. open_chatbot, "
+            "23. open_website (opens a website URL like google.com, value is the URL string), "
+            "24. search_web_query (searches for a query, value is the search query string), "
+            "25. search_product (search for a product on a shopping site, value is the search URL or query), "
+            "26. add_to_cart (add the current product to cart), "
+            "27. open_cart (navigate to the cart page), "
+            "28. proceed_to_checkout (proceed from cart to checkout), "
+            "29. apply_coupon (apply a promo or coupon code), "
+            "30. select_payment_method (select a payment option, value is the method name), "
+            "31. review_order (open the order summary or review page), "
+            "32. payment_safety_freeze (stop automation on payment/OTP page — never click Pay/OTP/CVV), "
+            "33. play_video (plays or resumes video playback on the page), "
+            "34. pause_video (pauses video playback on the page), "
+            "35. next_video (plays the next video on the page), "
+            "36. like_video (likes the current video), "
+            "37. comment_video (adds a comment text to the video, value is the comment string)\n\n"
+            "E-COMMERCE CHECKOUT RULES (CRITICAL — follow exactly):\n"
+            "When the user gives a shopping or checkout command, inspect the Visible Buttons and Visible Links "
+            "to determine which step of the checkout funnel is currently active, then return ONLY the next step:\n"
+            "  STATE A — Product page: If you see 'Add to Cart', 'Buy Now', or 'Add to Bag' in Visible Buttons, "
+            "use action='click_button' with value set to that exact button label.\n"
+            "  STATE B — Cart page: If the URL contains '/cart' or you see 'Proceed to Checkout' / 'Place Order', "
+            "use action='click_button' with value set to that exact button label.\n"
+            "  STATE C — Address/delivery page: If URL contains '/address' or '/delivery', or you see "
+            "'Deliver Here' / 'Continue' / 'Next', use action='click_button' with that label.\n"
+            "  STATE D — Payment page (OTP / CVV / UPI PIN entry visible in page text, "
+            "or URL contains 'pay/confirm' / 'pay-now'): "
+            "ALWAYS use action='payment_safety_freeze'. "
+            "NEVER click Pay Now, Submit OTP, Enter CVV, or Confirm Payment. "
+            "speak must tell the user to complete payment manually.\n"
+            "  NOTE: A payment *method selection* page (showing UPI, Card, COD options) "
+            "is NOT a STATE D page — respond with action='click_button' on the chosen method.\n"
+            "FALLBACK: If the required button is not visible in page context, "
+            "tell the user to scroll to the product or navigate to the correct page first.\n"
+        )
+
+        prompt = (
+            f"CURRENT PAGE CONTEXT:\n{context_block}\n\n"
+            f"USER VOICE COMMAND: \"{command}\"\n\n"
+            "Analyze the command and output structured JSON matching the VoiceCommandResponse schema."
+        )
+
+        try:
+            response = await asyncio.wait_for(
+                asyncio.to_thread(
+                    self.client.models.generate_content,
+                    model="gemini-2.0-flash",
+                    contents=prompt,
+                    config=types.GenerateContentConfig(
+                        system_instruction=system_instruction,
+                        response_mime_type="application/json",
+                        response_schema=VoiceCommandResponse,
+                        temperature=0.0,
+                    )
+                ),
+                timeout=4.0
+            )
+            result = VoiceCommandResponse.model_validate_json(response.text)
+            logger.info(f"Gemini parsed: '{command}' -> action='{result.action}', value='{result.value}', speak='{result.speak}'")
+            return result
+        except asyncio.TimeoutError:
+            logger.error("Gemini API call timed out. Falling back to rule-based fallback.")
+            return local_fallback_parser(command)
+        except Exception as e:
+            logger.error(f"Gemini API error: {e}. Falling back to rule-based fallback.")
+            return local_fallback_parser(command)
 
     async def parse_copilot_autofill(self, fields: list, user_prompt: str, user_profile: dict = None) -> dict:
         if not self.client:
@@ -221,5 +366,3 @@ class GeminiService:
             "settings": settings if settings else None,
             "actions": actions
         }
-
-gemini_service = GeminiService()

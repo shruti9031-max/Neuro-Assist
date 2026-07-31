@@ -1762,6 +1762,14 @@ class NeuroAssistUltimateFrontend {
           }
           break;
 
+        case "voice_interim":
+          const transcriptBoxInterim = document.getElementById("naVoiceTranscript");
+          if (transcriptBoxInterim) {
+            transcriptBoxInterim.innerText = `Spoken: "${e.detail.transcript}..."`;
+            transcriptBoxInterim.classList.add("has-text");
+          }
+          break;
+
         case "voice_processing":
           this.updateVoiceSteps("processing");
           const transcriptBoxProc = document.getElementById("naVoiceTranscript");

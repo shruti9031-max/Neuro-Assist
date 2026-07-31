@@ -281,96 +281,56 @@ function setStep(state: "idle"|"listening"|"processing"|"executed") {
   }
 }
 
-// In-popup SpeechRecognition
-const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-let recognition: any = null;
-let isListening      = false;
+let isListening = false;
 
-if (SR) {
-  recognition                 = new SR();
-  recognition.continuous      = false;
-  recognition.interimResults  = true;
-  recognition.lang            = sel("languageSelect")?.value ?? "en-IN";
-
-  recognition.onstart = () => {
-    isListening = true;
-    btn("ppMicBtn")?.classList.add("active");
-    el("ppViz")?.classList.add("on");
-    setStep("listening");
-  };
-  recognition.onend = () => {
-    isListening = false;
-    btn("ppMicBtn")?.classList.remove("active");
-    el("ppViz")?.classList.remove("on");
-    if (!el("ppStepDone")?.classList.contains("active")) setStep("idle");
-  };
-  recognition.onresult = (e: any) => {
-    let final = "", interim = "";
-    for (let i = e.resultIndex; i < e.results.length; i++) {
-      const t = e.results[i][0].transcript;
-      e.results[i].isFinal ? (final += t) : (interim += t);
-    }
-    const t = el("ppTranscript");
-    if (t) { t.className = "pp-transcript live"; t.textContent = final || interim; }
-    if (final) {
-      setStep("processing");
-      processVoiceCmd(final);
-    }
-  };
-  recognition.onerror = (e: any) => {
-    const t = el("ppTranscript");
-    if (t) { t.className = "pp-transcript"; t.textContent = "⚠️ " + e.error; }
-    setStep("idle");
-  };
+function toggleGlobalVoice(state: boolean) {
+  chrome.storage.local.set({ voiceEngineListening: state }, () => {
+    chrome.runtime.sendMessage({ type: "TOGGLE_VOICE_RECOGNITION", state: state });
+    toTab({ type: "TOGGLE_VOICE_SYSTEM", state: state });
+  });
 }
 
-function processVoiceCmd(cmd: string) {
-  const lower = cmd.toLowerCase();
-  const statusEl = el("voiceStatus");
-  if (lower.includes("youtube")) { window.open("https://youtube.com"); }
-  else if (lower.includes("google")) { window.open("https://google.com"); }
-  else {
-    if (statusEl) statusEl.textContent = "Processing NLU command…";
-    toTab({ type: "VOICE_COMMAND_RECOGNIZED", command: cmd });
+function updateVoiceUI(on: boolean) {
+  isListening = on;
+  syncVoiceBadge(on);
+  
+  const micBtn = btn("ppMicBtn");
+  const viz = el("ppViz");
+  const statusLabel = el("voiceStatus");
+  
+  if (on) {
+    micBtn?.classList.add("active");
+    viz?.classList.add("on");
+    setStep("listening");
+    if (statusLabel) statusLabel.textContent = "🎤 Listening…";
+  } else {
+    micBtn?.classList.remove("active");
+    viz?.classList.remove("on");
+    setStep("idle");
+    if (statusLabel) statusLabel.textContent = "Stopped";
   }
-  setTimeout(() => {
-    setStep("executed");
-    const t = el("ppTranscript");
-    if (t) t.textContent = `Executed: "${cmd}"`;
-    setTimeout(() => setStep("idle"), 2500);
-  }, 400);
 }
 
 btn("ppMicBtn")?.addEventListener("click", () => {
-  if (!recognition) return;
-  if (isListening) { recognition.stop(); } else { try { recognition.start(); } catch { /* ignore */ } }
+  toggleGlobalVoice(!isListening);
 });
 
-// Start / Stop voice buttons (in-popup recognition, same as before)
+// Start / Stop voice buttons (delegates to background offscreen)
 const startVoiceBtn = btn("startVoice");
 const stopVoiceBtn  = btn("stopVoice");
 const statusLabel   = el("voiceStatus");
 const languageSelect = sel("languageSelect");
 
-if (SR && recognition) {
-  startVoiceBtn?.addEventListener("click", () => {
-    try {
-      if (languageSelect) recognition.lang = languageSelect.value;
-      recognition.start();
-      if (statusLabel) statusLabel.textContent = "🎤 Listening…";
-    } catch (e) { console.error("Voice start error:", e); }
-  });
-  stopVoiceBtn?.addEventListener("click", () => {
-    try {
-      recognition.stop();
-      if (statusLabel) statusLabel.textContent = "Stopped";
-    } catch (e) { console.error("Voice stop error:", e); }
-  });
-}
+startVoiceBtn?.addEventListener("click", () => {
+  toggleGlobalVoice(true);
+});
+
+stopVoiceBtn?.addEventListener("click", () => {
+  toggleGlobalVoice(false);
+});
 
 languageSelect?.addEventListener("change", () => {
   if (!languageSelect) return;
-  if (recognition) recognition.lang = languageSelect.value;
   const v = languageSelect.value;
   if (v === "en-IN") setLanguage("english");
   else if (v === "hi-IN") setLanguage("hindi");
@@ -410,9 +370,40 @@ function syncVoiceBadge(on: boolean) {
   if (badge)   badge.style.display   = on ? "inline-flex" : "none";
   if (chevron) chevron.style.display = on ? "none" : "";
 }
-chrome.storage.local.get(["voiceEngineListening"], r => syncVoiceBadge(r.voiceEngineListening === true));
+
+chrome.storage.local.get(["voiceEngineListening"], r => {
+  updateVoiceUI(r.voiceEngineListening === true);
+});
+
 chrome.runtime.onMessage.addListener(msg => {
-  if (msg.type === "VOICE_STATE_CHANGED") syncVoiceBadge(msg.isListening);
+  if (msg.type === "VOICE_STATE_CHANGED") {
+    updateVoiceUI(msg.isListening);
+  } else if (msg.type === "VOICE_COMMAND_INTERIM") {
+    const t = el("ppTranscript");
+    if (t) { t.className = "pp-transcript live"; t.textContent = msg.transcript + "..."; }
+  } else if (msg.type === "VOICE_COMMAND_RECOGNIZED") {
+    const t = el("ppTranscript");
+    if (t) { t.className = "pp-transcript live"; t.textContent = msg.command; }
+    setStep("processing");
+    setTimeout(() => {
+      setStep("executed");
+      if (t) t.textContent = `Executed: "${msg.command}"`;
+      setTimeout(() => {
+        if (isListening) {
+          setStep("listening");
+        } else {
+          setStep("idle");
+        }
+      }, 2500);
+    }, 1000);
+  } else if (msg.type === "VOICE_ERROR") {
+    const t = el("ppTranscript");
+    if (t) { t.className = "pp-transcript"; t.textContent = "⚠️ " + msg.error; }
+    setStep("idle");
+    if (msg.error === "not-allowed") {
+      chrome.tabs.create({ url: chrome.runtime.getURL("permission.html") });
+    }
+  }
 });
 
 // =============================================================================
