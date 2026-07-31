@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Neuro-Assist Diagnostic Tool</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      background: #0f172a;
+      color: #e2e8f0;
+      min-height: 100vh;
+      padding: 32px 24px;
+    }
+    h1 { font-size: 22px; font-weight: 800; color: #fff; margin-bottom: 6px; }
+    .subtitle { font-size: 13px; color: #94a3b8; margin-bottom: 28px; }
+    .card {
+      background: #1e293b;
+      border: 1px solid #334155;
+      border-radius: 14px;
+      padding: 20px;
+      margin-bottom: 16px;
+    }
+    .card-title { font-size: 13px; font-weight: 700; color: #94a3b8; text-transform: uppercase; margin-bottom: 14px; letter-spacing: .04em; }
+    .check-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 10px 0;
+      border-bottom: 1px solid #0f172a;
+      font-size: 13px;
+    }
+    .check-row:last-child { border-bottom: none; }
+    .badge {
+      width: 22px; height: 22px; border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 12px; font-weight: 800; flex-shrink: 0;
+    }
+    .ok   { background: #166534; color: #4ade80; }
+    .fail { background: #7f1d1d; color: #f87171; }
+    .warn { background: #713f12; color: #facc15; }
+    .pending { background: #334155; color: #94a3b8; }
+    .label { flex: 1; color: #cbd5e1; }
+    .detail { font-size: 11px; color: #64748b; }
+    .btn {
+      background: linear-gradient(135deg, #3b82f6, #10b981);
+      color: #fff;
+      border: none;
+      padding: 12px 24px;
+      border-radius: 10px;
+      font-size: 13px;
+      font-weight: 700;
+      cursor: pointer;
+      margin-top: 16px;
+      width: 100%;
+      transition: opacity .2s;
+    }
+    .btn:hover { opacity: .85; }
+    .btn:disabled { opacity: .4; cursor: not-allowed; }
+    .step {
+      background: #0f172a;
+      border-left: 3px solid #3b82f6;
+      border-radius: 0 8px 8px 0;
+      padding: 12px 16px;
+      margin-bottom: 10px;
+      font-size: 13px;
+      line-height: 1.6;
+    }
+    .step strong { color: #fff; }
+    code {
+      background: #0f172a;
+      color: #34d399;
+      padding: 2px 7px;
+      border-radius: 4px;
+      font-size: 12px;
+      font-family: monospace;
+    }
+    #backendStatus { color: #facc15; }
+    .green { color: #4ade80 !important; }
+    .red   { color: #f87171 !important; }
+  </style>
+</head>
+<body>
+  <h1>🧠 Neuro-Assist Diagnostic Tool</h1>
+  <p class="subtitle">Run this page in your browser to check extension + backend status</p>
+
+  <!-- Backend Connectivity -->
+  <div class="card">
+    <div class="card-title">🔗 Backend Connectivity (Port 8080)</div>
+    <div class="check-row">
+      <div class="badge pending" id="b1">?</div>
+      <div class="label">Backend server reachable at <code>http://localhost:8080</code></div>
+      <div class="detail" id="b1d">checking...</div>
+    </div>
+    <div class="check-row">
+      <div class="badge pending" id="b2">?</div>
+      <div class="label"><code>GET /</code> returns status: success</div>
+      <div class="detail" id="b2d">checking...</div>
+    </div>
+    <div class="check-row">
+      <div class="badge pending" id="b3">?</div>
+      <div class="label"><code>POST /api/voice-command</code> endpoint works</div>
+      <div class="detail" id="b3d">checking...</div>
+    </div>
+    <div class="check-row">
+      <div class="badge pending" id="b4">?</div>
+      <div class="label">Gemini API Key configured</div>
+      <div class="detail" id="b4d">checking...</div>
+    </div>
+    <div class="check-row">
+      <div class="badge pending" id="b5">?</div>
+      <div class="label">Hinglish command test: <code>"niche jao"</code> → scroll down</div>
+      <div class="detail" id="b5d">checking...</div>
+    </div>
+    <button class="btn" id="runBackendChecks">▶ Run Backend Checks</button>
+  </div>
+
+  <!-- Extension Environment -->
+  <div class="card">
+    <div class="card-title">🔌 Browser Environment</div>
+    <div class="check-row">
+      <div class="badge" id="e1">?</div>
+      <div class="label">Chrome Extension APIs available</div>
+      <div class="detail" id="e1d">-</div>
+    </div>
+    <div class="check-row">
+      <div class="badge" id="e2">?</div>
+      <div class="label">SpeechRecognition API available</div>
+      <div class="detail" id="e2d">-</div>
+    </div>
+    <div class="check-row">
+      <div class="badge" id="e3">?</div>
+      <div class="label">SpeechSynthesis (TTS) available</div>
+      <div class="detail" id="e3d">-</div>
+    </div>
+    <div class="check-row">
+      <div class="badge" id="e4">?</div>
+      <div class="label">Fetch API available</div>
+      <div class="detail" id="e4d">-</div>
+    </div>
+  </div>
+
+  <!-- Fix Guide -->
+  <div class="card">
+    <div class="card-title">🛠️ Step-by-Step Fix Guide</div>
+
+    <div class="step">
+      <strong>Step 1 — Extension folder set karo (IMPORTANT)</strong><br>
+      Chrome mein jao: <code>chrome://extensions</code><br>
+      Developer Mode ON karo → "Load Unpacked" click karo<br>
+      ➡️ Ye folder select karo:<br>
+      <code>NeuroPfake\NeuroPlacement\Neuro-project\Frontend\client-extension</code><br>
+      <strong style="color:#f87171">⚠️ dist folder select mat karna — client-extension folder select karo</strong>
+    </div>
+
+    <div class="step">
+      <strong>Step 2 — Backend start karo</strong><br>
+      PowerShell open karo, ye run karo:<br>
+      <code>cd Desktop\NeuroPfake\NeuroPlacement\Neuro-project\Backend</code><br>
+      <code>python -m uvicorn main:app --host 0.0.0.0 --port 8080 --reload</code>
+    </div>
+
+    <div class="step">
+      <strong>Step 3 — Gemini API Key add karo (optional but recommended)</strong><br>
+      Backend folder mein <code>.env</code> file banao:<br>
+      <code>GEMINI_API_KEY=your_key_here</code><br>
+      Key yahan se lo: <a href="https://aistudio.google.com/app/apikey" target="_blank" style="color:#3b82f6">aistudio.google.com/app/apikey</a> (Free!)
+    </div>
+
+    <div class="step">
+      <strong>Step 4 — Extension reload karo</strong><br>
+      <code>chrome://extensions</code> → Neuro-Assist Clone → 🔄 Reload button
+    </div>
+
+    <div class="step">
+      <strong>Step 5 — Test karo</strong><br>
+      Kisi bhi website pe jao (google.com pe) → Extension icon click karo → Voice Engine → Toggle ON karo → Bolo <code>"niche jao"</code>
+    </div>
+  </div>
+
+  <script>
+    // Environment checks (run immediately)
+    function setBadge(id, status, detail) {
+      const el = document.getElementById(id);
+      const dd = document.getElementById(id + 'd');
+      el.className = 'badge ' + status;
+      el.textContent = status === 'ok' ? '✓' : status === 'fail' ? '✗' : status === 'warn' ? '!' : '?';
+      if (dd && detail) dd.textContent = detail;
+    }
+
+    // Check extension APIs
+    if (typeof chrome !== 'undefined' && chrome.runtime) {
+      setBadge('e1', 'ok', 'chrome.runtime available');
+    } else {
+      setBadge('e1', 'warn', 'Not inside extension context (normal for this page)');
+    }
+
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    setBadge('e2', SR ? 'ok' : 'fail', SR ? 'SpeechRecognition supported ✓' : 'Not supported in this browser!');
+
+    setBadge('e3', window.speechSynthesis ? 'ok' : 'fail',
+      window.speechSynthesis ? 'speechSynthesis available ✓' : 'TTS not supported!');
+
+    setBadge('e4', window.fetch ? 'ok' : 'fail',
+      window.fetch ? 'fetch API available ✓' : 'fetch not available!');
+
+    // Backend checks
+    document.getElementById('runBackendChecks').addEventListener('click', async () => {
+      const btn = document.getElementById('runBackendChecks');
+      btn.disabled = true;
+      btn.textContent = '⏳ Checking...';
+
+      // Test 1: Reachability (detect port 8080 or 8000)
+      let activePort = '8080';
+      let r = null;
+      try {
+        r = await fetch('http://localhost:8080/', { signal: AbortSignal.timeout(1000) });
+      } catch (e) {
+        try {
+          r = await fetch('http://localhost:8000/', { signal: AbortSignal.timeout(2000) });
+          activePort = '8000';
+        } catch (e2) {
+          setBadge('b1', 'fail', 'Connection refused — backend not running on port 8080 or 8000!');
+          setBadge('b2', 'fail', 'Start backend: python -m uvicorn main:app --port 8080 or 8000');
+          setBadge('b3', 'fail', 'Cannot test — backend down');
+          setBadge('b4', 'fail', 'Cannot test — backend down');
+          setBadge('b5', 'fail', 'Cannot test — backend down');
+          btn.disabled = false;
+          btn.textContent = '▶ Run Backend Checks';
+          return;
+        }
+      }
+
+      try {
+        if (r && r.ok) {
+          setBadge('b1', 'ok', `HTTP 200 OK (Port ${activePort})`);
+          const data = await r.json();
+
+          // Test 2: Status message
+          if (data.status === 'success') {
+            setBadge('b2', 'ok', data.message);
+          } else {
+            setBadge('b2', 'fail', 'Unexpected response');
+          }
+
+          // Test 3+4: Gemini key status
+          const keyStatus = data.gemini_api_key;
+          if (keyStatus === 'set') {
+            setBadge('b4', 'ok', 'Gemini API Key: SET ✓');
+          } else {
+            setBadge('b4', 'warn', 'Gemini API Key: MISSING (fallback mode active)');
+          }
+        } else {
+          setBadge('b1', 'fail', 'HTTP ' + (r ? r.status : 'unknown'));
+          setBadge('b2', 'fail', 'Could not reach server');
+          setBadge('b4', 'fail', 'Server error');
+        }
+      } catch (e) {
+        setBadge('b1', 'fail', 'Connection error: ' + e.message);
+      }
+
+      // Test 3: voice-command endpoint
+      try {
+        const r2 = await fetch(`http://localhost:${activePort}/api/voice-command`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            command: 'niche jao',
+            page_context: { url: 'https://test.com', title: 'Test', selected_text: '', visible_buttons: [], visible_headings: [], visible_forms: [], text_snippet: '' }
+          }),
+          signal: AbortSignal.timeout(10000)
+        });
+        if (r2.ok) {
+          setBadge('b3', 'ok', `/api/voice-command responding on port ${activePort} ✓`);
+          const data = await r2.json();
+          // Test 5: Hinglish
+          if (data.action === 'scroll_down' || (data.action === 'scroll' && data.parameters?.direction === 'down')) {
+            setBadge('b5', 'ok', `"niche jao" → action:${data.action} ✓`);
+          } else {
+            setBadge('b5', 'warn', `Got action:${data.action} — expected scroll_down`);
+          }
+        } else {
+          setBadge('b3', 'fail', 'HTTP ' + r2.status);
+          setBadge('b5', 'fail', 'Cannot test');
+        }
+      } catch(e) {
+        setBadge('b3', 'fail', 'Timeout or error: ' + e.message);
+        setBadge('b5', 'fail', 'Cannot test');
+      }
+
+      btn.disabled = false;
+      btn.textContent = '▶ Run Backend Checks Again';
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,633 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    /* ── Reset ───────────────────────────────────────────────── */
+    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+    body{
+      width:300px;
+      font-family:'Outfit', system-ui, -apple-system, sans-serif;
+      background:#f8fafc;
+      color:#0f172a;
+      display:flex;
+      flex-direction:column;
+      max-height:600px;
+      overflow:hidden;
+    }
+    /* ── Back bar ──────────────────────────────────────────────── */
+    #ppBackBar{
+      display:none;
+      align-items:center;
+      justify-content:space-between;
+      padding:10px 14px 2px;
+    }
+    #ppBackBtn{
+      background:none;border:none;color:#3b82f6;font-size:12px;
+      font-weight:700;cursor:pointer;display:flex;align-items:center;gap:4px;
+      font-family:inherit;padding:4px 8px;border-radius:8px;transition:all 0.15s;
+    }
+    #ppBackBtn:hover{background:#eff6ff;}
+    #ppBackBtn:focus-visible{outline:2px solid #3b82f6;outline-offset:2px;}
+    /* ── Header ────────────────────────────────────────────────── */
+    .pp-header{
+      background:linear-gradient(135deg,#0f172a 0%,#1e3a5f 100%);
+      color:#fff;padding:12px 14px 10px;
+      display:flex;align-items:center;justify-content:space-between;
+      flex-shrink:0;
+      border-bottom: 1px solid rgba(255,255,255,0.08);
+    }
+    .pp-header-left{display:flex;flex-direction:column;gap:1px;}
+    .pp-title{font-size:14.5px;font-weight:800;letter-spacing:-0.02em;}
+    .pp-sub{font-size:9.5px;color:#94a3b8;}
+    
+    #ppChatHeaderBtn {
+      background: none;
+      border: none;
+      color: rgba(255,255,255,0.85);
+      font-size: 15px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 4px;
+      outline: none;
+      transition: all 0.2s ease;
+      font-family: inherit;
+    }
+    #ppChatHeaderBtn:hover {
+      color: #fff;
+      transform: scale(1.15);
+    }
+    
+    .pp-status-dot{
+      width:8px;height:8px;border-radius:50%;background:#10b981;
+      box-shadow:0 0 0 3px rgba(16,185,129,.2);animation:ppPulse 2s infinite;flex-shrink:0;
+    }
+    @keyframes ppPulse{
+      0%,100%{box-shadow:0 0 0 3px rgba(16,185,129,.2);}
+      50%{box-shadow:0 0 0 6px rgba(16,185,129,.05);}
+    }
+    /* ── Scrollable body ──────────────────────────────────────── */
+    .pp-body{
+      flex:1;overflow-y:auto;padding:12px 10px;
+      display:flex;flex-direction:column;gap:10px;
+    }
+    .pp-body::-webkit-scrollbar{width:4px;}
+    .pp-body::-webkit-scrollbar-thumb{background:#cbd5e1;border-radius:4px;}
+    /* ── Section label ────────────────────────────────────────── */
+    .pp-sec{
+      font-size:9.5px;font-weight:800;color:#94a3b8;
+      text-transform:uppercase;letter-spacing:.07em;padding:0 2px;
+    }
+    /* ── Card ─────────────────────────────────────────────────── */
+    .pp-card{
+      background:#fff;
+      border:1px solid rgba(226,232,240,0.8);
+      border-radius:14px;
+      box-shadow: 0 2px 8px rgba(15,23,42,0.04);
+      overflow:hidden;
+    }
+    /* ── Module nav button ────────────────────────────────────── */
+    .pp-mod-btn{
+      width:100%;display:flex;align-items:center;gap:10px;
+      padding:11px 14px;background:transparent;border:none;
+      border-bottom:1px solid #f1f5f9;font-size:12px;font-weight:700;
+      color:#334155;cursor:pointer;text-align:left;transition:all 0.2s;
+      font-family:inherit;
+    }
+    .pp-mod-btn:last-child{border-bottom:none;}
+    .pp-mod-btn:hover{background:#f8fafc;color:#3b82f6;}
+    .pp-chevron{margin-left:auto;color:#cbd5e1;font-size:11px;}
+    /* Voice listening badge */
+    .pp-listen-badge{
+      margin-left:auto;display:none;align-items:center;gap:3px;
+      font-size:10px;font-weight:800;color:#10b981;
+    }
+    .pp-listen-dot{
+      width:6px;height:6px;border-radius:50%;background:#10b981;
+      animation:ppPulse 1.2s infinite;
+    }
+    /* ── Setting row ──────────────────────────────────────────── */
+    .pp-row{
+      display:flex;align-items:center;justify-content:space-between;
+      padding:9px 12px;border-bottom:1px solid #f1f5f9;gap:8px;
+    }
+    .pp-row:last-child{border-bottom:none;}
+    .pp-row-info{display:flex;flex-direction:column;gap:1px;min-width:0;}
+    .pp-row-label{font-size:11px;font-weight:700;color:#1e293b;}
+    .pp-row-desc{font-size:9px;color:#94a3b8;}
+    /* ── Toggle ───────────────────────────────────────────────── */
+    .pp-toggle{position:relative;display:inline-block;width:36px;height:20px;flex-shrink:0;}
+    .pp-toggle input{opacity:0;width:0;height:0;}
+    .pp-slider{
+      position:absolute;inset:0;background:#cbd5e1;
+      border-radius:20px;cursor:pointer;transition:background .2s;
+    }
+    .pp-slider::before{
+      content:"";position:absolute;width:14px;height:14px;
+      left:3px;top:3px;background:#fff;border-radius:50%;
+      transition:transform .2s;box-shadow:0 1px 3px rgba(0,0,0,.15);
+    }
+    .pp-toggle input:checked+.pp-slider{background:#10b981;}
+    .pp-toggle input:checked+.pp-slider::before{transform:translateX(16px);}
+    /* ── Stepper ──────────────────────────────────────────────── */
+    .pp-stepper{display:flex;align-items:center;gap:4px;flex-shrink:0;}
+    .pp-step-btn{
+      width:22px;height:22px;border-radius:6px;border:1px solid #e2e8f0;
+      background:#f8fafc;font-size:14px;font-weight:700;cursor:pointer;
+      display:flex;align-items:center;justify-content:center;
+      color:#475569;transition:background .12s;font-family:inherit;
+    }
+    .pp-step-btn:hover{background:#e2e8f0;}
+    .pp-step-val{font-size:10px;font-weight:800;color:#3b82f6;min-width:28px;text-align:center;}
+    /* ── Select ───────────────────────────────────────────────── */
+    .pp-select{
+      padding:4px 6px;font-size:11px;font-weight:600;
+      color:#334155!important;background:#f8fafc!important;
+      border:1px solid #e2e8f0;border-radius:7px;outline:none;
+      cursor:pointer;max-width:115px;font-family:inherit;
+      -webkit-text-fill-color:#334155!important;
+    }
+    /* ── Workspace (hidden by default) ───────────────────────── */
+    .pp-ws{display:none;flex-direction:column;gap:10px;}
+    .pp-ws.active{display:flex;}
+    .pp-ws-title{
+      font-size:10px;font-weight:800;color:#0f172a;
+      text-transform:uppercase;letter-spacing:.04em;
+    }
+    /* ── Input ────────────────────────────────────────────────── */
+    .pp-input{
+      width:100%;padding:6px 10px;font-size:10px;font-family:inherit;
+      border:1px solid #e2e8f0;border-radius:7px;outline:none;
+      color:#0f172a!important;background:#fff!important;
+      -webkit-text-fill-color:#0f172a!important;
+      caret-color:#0f172a!important;
+    }
+    .pp-input::placeholder{color:#94a3b8!important;-webkit-text-fill-color:#94a3b8!important;}
+    .pp-input:focus{border-color:#93c5fd;}
+    select,.pp-select,input,textarea{
+      color:#0f172a!important;background-color:#fff!important;
+      caret-color:#0f172a!important;-webkit-text-fill-color:#0f172a!important;
+    }
+    /* ── Stepper card ─────────────────────────────────────────── */
+    .pp-sc{
+      display:flex;flex-direction:column;align-items:center;gap:4px;
+      background:#fff;border:1px solid #e2e8f0;padding:6px;border-radius:10px;
+    }
+    .pp-sc-lbl{font-size:9px;font-weight:700;color:#475569;text-transform:uppercase;}
+    /* ── Grid ─────────────────────────────────────────────────── */
+    .pp-g2{display:grid;grid-template-columns:1fr 1fr;gap:6px;}
+    .pp-g3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;}
+    .pp-span2{grid-column:span 2;}
+    /* ── Mic badge ─────────────────────────────────────────────── */
+    .pp-mic-badge{
+      display:inline-flex;align-items:center;gap:6px;padding:5px 10px;
+      border-radius:20px;font-size:10px;font-weight:700;text-transform:uppercase;align-self:flex-start;
+    }
+    .pp-mic-ready{background:#e6f4ea;color:#137333;border:1px solid #ceead6;}
+    .pp-mic-missing{background:#fce8e6;color:#c5221f;border:1px solid #fad2cf;}
+    .pp-mic-dot{width:7px;height:7px;border-radius:50%;}
+    .pp-mic-ready .pp-mic-dot{background:#137333;}
+    .pp-mic-missing .pp-mic-dot{background:#c5221f;}
+    /* ── Mic button ────────────────────────────────────────────── */
+    .pp-mic-btn{
+      width:68px;height:68px;border-radius:50%;border:none;align-self:center;
+      background:linear-gradient(135deg,#3b82f6 0%,#10b981 100%);
+      color:#fff;font-size:26px;cursor:pointer;
+      display:flex;align-items:center;justify-content:center;
+      box-shadow:0 8px 20px rgba(59,130,246,.3);transition:all .25s;
+    }
+    .pp-mic-btn:hover{transform:scale(1.05);}
+    .pp-mic-btn.active{
+      background:linear-gradient(135deg,#ef4444 0%,#f59e0b 100%);
+      animation:ppBreath 1.5s infinite;
+    }
+    @keyframes ppBreath{
+      0%,100%{box-shadow:0 0 0 0 rgba(239,68,68,.6);}
+      50%{box-shadow:0 0 0 10px rgba(239,68,68,0);}
+    }
+    /* ── Voice steps ───────────────────────────────────────────── */
+    .pp-steps{display:flex;justify-content:space-between;position:relative;padding:0 10px;}
+    .pp-steps::before{
+      content:"";position:absolute;top:9px;left:30px;right:30px;
+      height:2px;background:#cbd5e1;
+    }
+    .pp-step{
+      display:flex;flex-direction:column;align-items:center;gap:5px;
+      font-size:9px;font-weight:700;color:#64748b;position:relative;z-index:1;min-width:56px;
+    }
+    .pp-step-dot{
+      width:18px;height:18px;border-radius:50%;background:#fff;
+      border:2px solid #cbd5e1;display:flex;align-items:center;
+      justify-content:center;font-size:9px;color:#cbd5e1;transition:all .3s;
+    }
+    .pp-step.active{color:#3b82f6;}
+    .pp-step.active .pp-step-dot{border-color:#3b82f6;background:#3b82f6;color:#fff;box-shadow:0 0 0 4px rgba(59,130,246,.2);}
+    .pp-step.done{color:#10b981;}
+    .pp-step.done .pp-step-dot{border-color:#10b981;background:#10b981;color:#fff;}
+    /* ── Transcript ────────────────────────────────────────────── */
+    .pp-transcript{
+      background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;
+      padding:10px 14px;min-height:44px;font-size:11px;color:#64748b;
+      text-align:center;font-style:italic;line-height:1.5;
+    }
+    .pp-transcript.live{font-style:normal;font-weight:600;color:#0f172a;border-color:#3b82f6;background:#eff6ff;}
+    /* ── Visualizer ────────────────────────────────────────────── */
+    .pp-viz{display:none;align-items:center;justify-content:center;gap:3px;height:22px;align-self:center;}
+    .pp-viz.on{display:flex;}
+    .pp-vbar{width:3px;background:#ef4444;border-radius:3px;animation:ppBounce 1.2s infinite ease-in-out;}
+    .pp-vbar:nth-child(1){height:6px;}
+    .pp-vbar:nth-child(2){height:14px;animation-delay:.15s;}
+    .pp-vbar:nth-child(3){height:18px;animation-delay:.3s;}
+    .pp-vbar:nth-child(4){height:12px;animation-delay:.45s;}
+    .pp-vbar:nth-child(5){height:6px;animation-delay:.6s;}
+    @keyframes ppBounce{0%,100%{transform:scaleY(1)}50%{transform:scaleY(2)}}
+    /* ── Dev toggle ────────────────────────────────────────────── */
+    .pp-dev-toggle{
+      background:none;border:none;color:#64748b;font-size:10px;
+      font-weight:700;cursor:pointer;display:flex;align-items:center;gap:4px;padding:4px 0;
+      font-family:inherit;
+    }
+    .pp-dev-toggle:hover{color:#334155;}
+    .pp-dev-panel{
+      display:none;flex-direction:column;gap:6px;
+      background:#f8fafc;border:1px solid #cbd5e1;border-radius:10px;padding:10px;
+    }
+    .pp-dev-panel.open{display:flex;}
+    /* ── Cam ───────────────────────────────────────────────────── */
+    .pp-cam{
+      width:100%;height:150px;background:#000;border-radius:12px;
+      border:1px solid #cbd5e1;overflow:hidden;position:relative;
+    }
+    #ppGestureVideo{width:100%;height:100%;object-fit:cover;transform:scaleX(-1);}
+    #ppCamOverlay{
+      position:absolute;top:8px;left:8px;
+      background:rgba(15,23,42,.75);color:#fff;font-size:9px;font-weight:700;
+      font-family:monospace;padding:3px 7px;border-radius:5px;
+      border:1px solid rgba(255,255,255,.15);
+    }
+    /* ── Preview box ────────────────────────────────────────────── */
+    .pp-preview{
+      padding:8px 12px;background:#eff6ff;border:1px dashed #bfdbfe;
+      border-radius:10px;font-size:10px;color:#1e3a8a;line-height:1.4;text-align:center;
+    }
+    /* ── Status box ─────────────────────────────────────────────── */
+    .pp-status-box{
+      display:none;align-items:center;gap:8px;padding:8px 12px;
+      background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;
+      font-size:10px;color:#334155;
+    }
+    .pp-status-dot-el{width:8px;height:8px;border-radius:50%;background:#3b82f6;flex-shrink:0;}
+    /* ── Buttons ────────────────────────────────────────────────── */
+    .pp-btn{
+      flex:1;padding:8px 12px;border:none;border-radius:10px;font-size:11px;
+      font-weight:800;font-family:inherit;cursor:pointer;
+      display:flex;align-items:center;justify-content:center;gap:5px;
+      transition:all .15s ease;box-shadow:0 2px 4px rgba(15,23,42,0.04);
+    }
+    .pp-btn:hover{transform:translateY(-1px);box-shadow:0 4px 8px rgba(15,23,42,0.08);}
+    .pp-btn:active{transform:translateY(0);}
+    .pp-btn:focus-visible,.pp-mod-btn:focus-visible,.pp-undo-btn:focus-visible,.pp-simplify-btn:focus-visible{
+      outline:2px solid #3b82f6!important;outline-offset:2px!important;
+    }
+    .pp-btn-blue{background:#3b82f6;color:#fff;}
+    .pp-btn-green{background:#10b981;color:#fff;}
+    .pp-btn-dark{background:#0f172a;color:#fff;}
+    .pp-btn-ghost{background:#f1f5f9;color:#334155;border:1px solid #e2e8f0;}
+    .pp-btn-ghost:hover{background:#e2e8f0;opacity:1;}
+    .pp-btn-red{background:#fee2e2;color:#991b1b;border:1px solid #fecaca;}
+    /* ── Footer ─────────────────────────────────────────────────── */
+    .pp-footer{
+      padding:10px;display:flex;flex-direction:column;gap:7px;
+      background:#f8fafc;border-top:1px solid #e2e8f0;flex-shrink:0;
+    }
+    /* "Open Copilot Chat" button in footer */
+    .pp-copilot-btn{
+      width:100%;padding:8px 12px;background:#fff;
+      border:1px solid #e2e8f0;border-radius:9px;
+      font-size:11.5px;font-weight:700;font-family:inherit;
+      color:#3b82f6;cursor:pointer;
+      display:flex;align-items:center;justify-content:center;gap:6px;
+      transition:all .15s;
+      box-shadow: 0 2px 6px rgba(59,130,246,0.06);
+    }
+    .pp-copilot-btn:hover{background:#eff6ff;border-color:#3b82f6;}
+    /* Badge row */
+    .pp-badge{
+      display:flex;align-items:center;justify-content:center;gap:5px;
+      font-size:10px;font-weight:700;color:#3b82f6;background:#eff6ff;
+      padding:6px 10px;border-radius:20px;
+    }
+    .pp-foot-row{display:flex;gap:6px;}
+    /* Undo + Simplifier — match panel exactly */
+    .pp-undo-btn{
+      flex:1;padding:9px 12px;background:#f1f5f9;color:#334155;
+      border:1px solid #cbd5e1;border-radius:10px;font-size:11px;
+      font-weight:800;font-family:inherit;cursor:pointer;transition:all .15s;
+      display:flex;align-items:center;justify-content:center;gap:5px;
+    }
+    .pp-undo-btn:hover{background:#e2e8f0;transform:translateY(-1px);}
+    .pp-simplify-btn{
+      flex:1;padding:9px 12px;background:#10b981;color:#fff;
+      border:none;border-radius:10px;font-size:11px;font-weight:800;
+      font-family:inherit;cursor:pointer;
+      box-shadow:0 3px 10px rgba(16,185,129,.2);
+      transition:all .15s;
+      display:flex;align-items:center;justify-content:center;gap:5px;
+    }
+    .pp-simplify-btn:hover{background:#059669;transform:translateY(-1px);}
+    .pp-simplify-btn.active-state{background:#ef4444;box-shadow:0 3px 10px rgba(239,68,68,.2);}
+    /* Voice status text */
+    .pp-vs-text{padding:5px 12px 6px;font-size:11px;font-weight:600;color:#3b82f6;}
+  </style>
+</head>
+<body>
+
+  <!-- ── Back bar (shown inside workspaces) ──────────────────── -->
+  <div id="ppBackBar">
+    <button id="ppBackBtn">← Back</button>
+  </div>
+
+  <!-- ── Header ──────────────────────────────────────────────── -->
+  <div class="pp-header">
+    <div class="pp-header-left">
+      <div class="pp-title">🤖 Neuroooo</div>
+      <div class="pp-sub">AI Accessibility Assistant · Gemini</div>
+    </div>
+    <div style="display:flex;align-items:center;gap:8px;">
+      <button id="ppChatHeaderBtn" title="Open Accessibility Copilot Chat" style="background:rgba(255,255,255,0.12);border:none;color:#fff;font-size:14px;width:28px;height:28px;border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all 0.2s;outline:none;">💬</button>
+      <div class="pp-status-dot" title="Extension active"></div>
+    </div>
+  </div>
+
+  <!-- ── Scrollable body ─────────────────────────────────────── -->
+  <div class="pp-body" id="ppBody">
+
+    <!-- ════ MAIN VIEW ════════════════════════════════════════ -->
+    <div id="ppMainView">
+      
+      <!-- ════ ACCESSIBILITY SCORE CARD (at top of main view) ════ -->
+      <div class="pp-card" id="ppScoreCard" style="padding: 12px; margin-bottom: 10px; display: flex; flex-direction: column; gap: 10px;">
+        <!-- Header / Score Badge -->
+        <div style="display: flex; align-items: center; justify-content: space-between;">
+          <div style="display: flex; flex-direction: column; gap: 2px;">
+            <span style="font-size: 10px; font-weight: 800; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em;">Overall Accessibility</span>
+            <span id="ppScoreStatus" style="font-size: 13px; font-weight: 800; color: #10b981;">Analyzing...</span>
+          </div>
+          <div style="display: flex; align-items: baseline; gap: 2px; background: #f0fdf4; border: 1px solid #bbf7d0; padding: 4px 10px; border-radius: 10px;" id="ppScoreBadgeContainer">
+            <span id="ppScoreNum" style="font-size: 20px; font-weight: 800; color: #15803d;">--</span>
+            <span style="font-size: 11px; font-weight: 700; color: #86efac;">/ 100</span>
+          </div>
+        </div>
+
+        <!-- POUR Score Breakdown Grid -->
+        <div class="pp-g2" style="gap: 6px;">
+          <div style="background: #f8fafc; border: 1px solid #e2e8f0; padding: 6px 8px; border-radius: 8px; display: flex; justify-content: space-between; align-items: center;">
+            <span style="font-size: 9.5px; font-weight: 700; color: #475569;">👁️ Perceivable</span>
+            <span id="ppPourPerceivable" style="font-size: 11px; font-weight: 800; color: #3b82f6;">--</span>
+          </div>
+          <div style="background: #f8fafc; border: 1px solid #e2e8f0; padding: 6px 8px; border-radius: 8px; display: flex; justify-content: space-between; align-items: center;">
+            <span style="font-size: 9.5px; font-weight: 700; color: #475569;">🕹️ Operable</span>
+            <span id="ppPourOperable" style="font-size: 11px; font-weight: 800; color: #3b82f6;">--</span>
+          </div>
+          <div style="background: #f8fafc; border: 1px solid #e2e8f0; padding: 6px 8px; border-radius: 8px; display: flex; justify-content: space-between; align-items: center;">
+            <span style="font-size: 9.5px; font-weight: 700; color: #475569;">🧠 Understandable</span>
+            <span id="ppPourUnderstandable" style="font-size: 11px; font-weight: 800; color: #3b82f6;">--</span>
+          </div>
+          <div style="background: #f8fafc; border: 1px solid #e2e8f0; padding: 6px 8px; border-radius: 8px; display: flex; justify-content: space-between; align-items: center;">
+            <span style="font-size: 9.5px; font-weight: 700; color: #475569;">⚙️ Robust</span>
+            <span id="ppPourRobust" style="font-size: 11px; font-weight: 800; color: #3b82f6;">--</span>
+          </div>
+        </div>
+
+        <!-- Website Issues Summary List -->
+        <div style="display: flex; flex-direction: column; gap: 4px;">
+          <span style="font-size: 9.5px; font-weight: 800; color: #64748b; text-transform: uppercase; letter-spacing: 0.04em;">Website Issues Summary</span>
+          <ul id="ppIssuesList" style="list-style: none; display: flex; flex-direction: column; gap: 6px; font-size: 10px; color: #334155; max-height: 105px; overflow-y: auto; padding: 0 2px 0 0; scrollbar-width: thin;">
+            <li style="padding: 6px 10px; background: #eff6ff; border-radius: 8px; color: #1e40af; border: 1px solid #dbeafe; font-size: 10px;">ℹ️ Scanning page accessibility...</li>
+          </ul>
+        </div>
+
+        <!-- Placeholder "✨ Explain with AI" Button (non-functional for future integration) -->
+        <button id="ppExplainAiBtn" class="pp-btn pp-btn-ghost" style="width: 100%; font-size: 10px; border-color: #cbd5e1; background: #f8fafc; color: #6366f1; cursor: default;">
+          ✨ Explain with AI
+        </button>
+
+        <!-- Refresh Score Button -->
+        <button id="ppRefreshScoreBtn" class="pp-btn pp-btn-blue" style="width: 100%; font-size: 10.5px; padding: 7px 10px;">
+          🔄 Refresh Score
+        </button>
+      </div>
+
+      <div class="pp-sec">👋 Assistant Modules</div>
+      <div class="pp-card" id="ppAssistantModulesCard">
+        <button class="pp-mod-btn" data-ws="ppWsGesture">
+          <span style="font-size:15px">🖐️</span>Gestures &amp; Sign Translate
+          <span class="pp-chevron">›</span>
+        </button>
+        <button class="pp-mod-btn" data-ws="ppWsVoice" id="ppBtnVoiceNav">
+          <span style="font-size:15px">🎙️</span>Voice Navigation Engine
+          <span class="pp-listen-badge" id="ppListenBadge">
+            <span class="pp-listen-dot"></span>Listening
+          </span>
+          <span class="pp-chevron" id="ppVoiceChevron">›</span>
+        </button>
+        <button class="pp-mod-btn" data-ws="ppWsVisual">
+          <span style="font-size:15px">🧠</span>Visual Comfort &amp; Fonts
+          <span class="pp-chevron">›</span>
+        </button>
+      </div>
+    </div>
+
+
+    <!-- ════ WORKSPACE: Gesture ═══════════════════════════════ -->
+    <div class="pp-ws" id="ppWsGesture">
+      <div class="pp-ws-title">🖐️ Gesture &amp; Sign Language Control</div>
+      <div class="pp-cam">
+        <video id="ppGestureVideo" autoplay playsinline></video>
+        <div id="ppCamOverlay">CAMERA INACTIVE</div>
+      </div>
+      <div class="pp-card" style="padding:10px 12px;flex-direction:column;gap:4px;display:flex;">
+        <span style="font-size:9px;font-weight:700;color:#64748b;text-transform:uppercase;">Gesture Status</span>
+        <span id="ppGestureStatus" style="font-size:15px;font-weight:800;color:#3b82f6;">None</span>
+      </div>
+      <div class="pp-card">
+        <div class="pp-row">
+          <div class="pp-row-info">
+            <span class="pp-row-label">Active DOM Actions</span>
+            <span class="pp-row-desc">Hand signs trigger SCROLL &amp; CLICK.</span>
+          </div>
+          <label class="pp-toggle">
+            <input type="checkbox" id="ppGestureToggle" checked>
+            <span class="pp-slider"></span>
+          </label>
+        </div>
+      </div>
+      <div style="display:flex;gap:6px;">
+        <button class="pp-btn pp-btn-blue" id="ppStartGestureBtn" style="flex:1;">📷 Start Camera</button>
+        <button class="pp-btn pp-btn-ghost" id="ppStopGestureBtn" style="flex:1;display:none;">⏹ Stop</button>
+      </div>
+    </div>
+
+    <!-- ════ WORKSPACE: Voice ══════════════════════════════════ -->
+    <div class="pp-ws" id="ppWsVoice">
+      <div class="pp-ws-title">🎙️ Multilingual Vocal Navigation</div>
+      <div id="ppHasMicView" style="display:flex;flex-direction:column;gap:10px;">
+        <div class="pp-mic-badge pp-mic-ready" id="ppMicBadge">
+          <span class="pp-mic-dot"></span>Microphone Ready
+        </div>
+        <button class="pp-mic-btn" id="ppMicBtn">🎙️</button>
+        <div class="pp-viz" id="ppViz">
+          <span class="pp-vbar"></span><span class="pp-vbar"></span>
+          <span class="pp-vbar"></span><span class="pp-vbar"></span>
+          <span class="pp-vbar"></span>
+        </div>
+        <div class="pp-steps">
+          <div class="pp-step active" id="ppStepListen"><div class="pp-step-dot">1</div><span>Listening</span></div>
+          <div class="pp-step" id="ppStepProcess"><div class="pp-step-dot">2</div><span>Processing</span></div>
+          <div class="pp-step" id="ppStepDone"><div class="pp-step-dot">3</div><span>Executed</span></div>
+        </div>
+        <div class="pp-transcript" id="ppTranscript">Say a command (e.g. "scroll down", "go back")…</div>
+      </div>
+      <div id="ppNoMicView" style="display:none;">
+        <div style="background:#fff5f5;border:1px dashed #feb2b2;border-radius:12px;padding:14px;display:flex;flex-direction:column;align-items:center;gap:10px;text-align:center;">
+          <div style="font-size:13px;font-weight:800;color:#c53030;">⚠️ No Microphone</div>
+          <p style="font-size:11px;color:#742a2a;line-height:1.5;margin:0;">No audio input found. Plug in a mic or use the simulator.</p>
+          <div style="display:flex;gap:6px;width:100%;">
+            <button class="pp-btn pp-btn-ghost" id="ppRetryMic" style="flex:1;font-size:10px;">🔄 Retry</button>
+            <button class="pp-btn pp-btn-ghost" id="ppSimBypass" style="flex:1;font-size:10px;">⌨️ Simulator</button>
+          </div>
+        </div>
+      </div>
+      <div class="pp-card">
+        <div class="pp-row">
+          <div class="pp-row-info">
+            <span class="pp-row-label">🌐 Language</span>
+            <span class="pp-row-desc">Recognition &amp; synthesis</span>
+          </div>
+          <select class="pp-select" id="languageSelect">
+            <option value="en-IN">English</option>
+            <option value="hi-IN">हिन्दी</option>
+            <option value="pa-IN">ਪੰਜਾਬੀ</option>
+          </select>
+        </div>
+        <div class="pp-row" style="gap:6px;">
+          <button class="pp-btn pp-btn-blue" id="startVoice" style="flex:1;font-size:10px;">🎤 Start</button>
+          <button class="pp-btn pp-btn-green" id="stopVoice" style="flex:1;font-size:10px;">⏹ Stop</button>
+        </div>
+        <div class="pp-vs-text" id="voiceStatus">Ready</div>
+      </div>
+      <button class="pp-dev-toggle" id="ppDevToggle"><span id="ppDevArrow">▶</span> Developer Simulator Tools</button>
+      <div class="pp-dev-panel" id="ppDevPanel">
+        <div style="display:flex;gap:6px;align-items:center;">
+          <input class="pp-input" type="text" id="ppSimInput" placeholder="Type a simulated voice command…" style="flex:1;">
+          <button class="pp-btn pp-btn-blue" id="ppSimSend" style="flex:none;padding:6px 12px;font-size:10px;">Send</button>
+        </div>
+      </div>
+    </div>
+
+
+    <!-- ════ WORKSPACE: Visual ═════════════════════════════════ -->
+    <div class="pp-ws" id="ppWsVisual">
+      <div class="pp-ws-title">🎨 Visual Comfort &amp; Dyslexia</div>
+      <div class="pp-g2">
+        <div class="pp-card">
+          <div class="pp-row" style="border-radius:10px;border:none;">
+            <span class="pp-row-label" style="font-size:10px;">AI Simplifier</span>
+            <label class="pp-toggle"><input type="checkbox" id="ppSimplifierCb"><span class="pp-slider"></span></label>
+          </div>
+        </div>
+        <div class="pp-card">
+          <div class="pp-row" style="border-radius:10px;border:none;">
+            <span class="pp-row-label" style="font-size:10px;">Dyslexia Font</span>
+            <label class="pp-toggle"><input type="checkbox" id="ppDyslexiaCb"><span class="pp-slider"></span></label>
+          </div>
+        </div>
+      </div>
+      <div class="pp-g3">
+        <div class="pp-sc"><span class="pp-sc-lbl">Font Size</span><div class="pp-stepper"><button class="pp-step-btn" id="ppFontDec">−</button><span class="pp-step-val" id="ppFontVal">100%</span><button class="pp-step-btn" id="ppFontInc">+</button></div></div>
+        <div class="pp-sc"><span class="pp-sc-lbl">Line Spacing</span><div class="pp-stepper"><button class="pp-step-btn" id="ppLineDec">−</button><span class="pp-step-val" id="ppLineVal">1.5x</span><button class="pp-step-btn" id="ppLineInc">+</button></div></div>
+        <div class="pp-sc"><span class="pp-sc-lbl">Letters</span><div class="pp-stepper"><button class="pp-step-btn" id="ppLetterDec">−</button><span class="pp-step-val" id="ppLetterVal">0px</span><button class="pp-step-btn" id="ppLetterInc">+</button></div></div>
+      </div>
+      <div class="pp-g3">
+        <div class="pp-sc" style="align-items:flex-start;gap:3px;">
+          <span class="pp-sc-lbl">Theme</span>
+          <select class="pp-select" id="ppThemeSelect" style="width:100%;">
+            <option value="none">Default</option>
+            <option value="hc-dark">HC Dark</option>
+            <option value="hc-light">HC Light</option>
+            <option value="monochrome">Grayscale</option>
+          </select>
+        </div>
+        <div class="pp-sc" style="align-items:flex-start;gap:3px;">
+          <span class="pp-sc-lbl">Color-Blind</span>
+          <select class="pp-select" id="ppColorBlindSelect" style="width:100%;">
+            <option value="none">None</option>
+            <option value="protanopia">Protan</option>
+            <option value="deuteranopia">Deuter</option>
+            <option value="tritanopia">Tritan</option>
+          </select>
+        </div>
+        <div class="pp-sc"><span class="pp-sc-lbl">Contrast</span><div class="pp-stepper"><button class="pp-step-btn" id="ppContrastDec">−</button><span class="pp-step-val" id="ppContrastVal">100%</span><button class="pp-step-btn" id="ppContrastInc">+</button></div></div>
+      </div>
+      <div class="pp-preview">Real-time Preview: Spacing, font scale, contrast and visual theme apply here instantly.</div>
+    </div>
+
+    <!-- ════ WORKSPACE: Copilot / Profile ══════════════════════ -->
+    <div class="pp-ws" id="ppWsCopilot">
+      <div class="pp-ws-title">🤖 AI Copilot Task Fill &amp; Profile</div>
+      <div class="pp-card" style="padding:12px;display:flex;flex-direction:column;gap:8px;">
+        <div style="font-size:10px;font-weight:800;color:#1e293b;text-transform:uppercase;letter-spacing:.04em;">✨ Form Autofill &amp; Navigation Agent</div>
+        <span style="font-size:9px;color:#64748b;line-height:1.4;">Scans all form fields and generates AI predictions using your Profile Memory.</span>
+        <div style="display:flex;flex-direction:column;gap:3px;">
+          <span style="font-size:9px;font-weight:700;color:#475569;">Goal Instruction:</span>
+          <input class="pp-input" type="text" id="ppCopilotPrompt" placeholder="e.g. Autofill job application, search and add to cart…">
+        </div>
+        <div style="display:flex;gap:6px;">
+          <button class="pp-btn pp-btn-blue" id="ppScanFillBtn" style="flex:1;font-size:10px;">✨ Scan &amp; Fill</button>
+          <button class="pp-btn pp-btn-green" id="ppExecuteGoalBtn" style="flex:1;font-size:10px;">🚀 Execute Goal</button>
+        </div>
+      </div>
+      <div class="pp-card" style="padding:12px;display:flex;flex-direction:column;gap:8px;">
+        <div style="font-size:10px;font-weight:800;color:#0f172a;text-transform:uppercase;">👤 Profile Memory</div>
+        <div class="pp-g2">
+          <input class="pp-input" type="text"  id="ppProfName"    placeholder="Full Name">
+          <input class="pp-input" type="email" id="ppProfEmail"   placeholder="Email">
+          <input class="pp-input" type="tel"   id="ppProfPhone"   placeholder="Phone">
+          <input class="pp-input" type="text"  id="ppProfDob"     placeholder="DOB (YYYY-MM-DD)">
+          <input class="pp-input pp-span2" type="text" id="ppProfAddress" placeholder="Street Address">
+          <input class="pp-input" type="text"  id="ppProfCity"    placeholder="City">
+          <input class="pp-input" type="text"  id="ppProfState"   placeholder="State">
+          <input class="pp-input" type="text"  id="ppProfCountry" placeholder="Country">
+          <input class="pp-input" type="text"  id="ppProfPostal"  placeholder="Postal Code">
+          <input class="pp-input pp-span2" type="text" id="ppProfGender" placeholder="Gender (optional)">
+        </div>
+        <div style="display:flex;gap:6px;">
+          <button class="pp-btn pp-btn-dark"  id="ppSaveProfileBtn"   style="flex:1;font-size:10px;">💾 Save</button>
+          <button class="pp-btn pp-btn-ghost" id="ppResetProfileBtn"  style="flex:1;font-size:10px;">↺ Reset</button>
+          <button class="pp-btn pp-btn-red"   id="ppDeleteProfileBtn" style="flex:1;font-size:10px;">🗑 Delete</button>
+        </div>
+      </div>
+      <div class="pp-status-box" id="ppCopilotStatus">
+        <div class="pp-status-dot-el" id="ppCopilotDot"></div>
+        <span id="ppCopilotStatusText">Scanner idle…</span>
+      </div>
+    </div>
+
+  </div><!-- /.pp-body -->
+
+  <!-- ════ FOOTER (always visible) ────────────────────────────── -->
+  <div class="pp-footer">
+    <div class="pp-badge">🤖 Neuroooo — AI Accessibility Active</div>
+    <div class="pp-foot-row">
+      <button class="pp-undo-btn" id="ppUndoBtn">↩ Undo Changes</button>
+      <button class="pp-simplify-btn" id="ppSimplifyBtn">✨ AI Website Simplifier</button>
+    </div>
+  </div>
+
+  <script src="./popup.js"></script>
+</body>
+</html>
