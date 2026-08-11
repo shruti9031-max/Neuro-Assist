@@ -31,6 +31,7 @@ export class NeuroVoiceEngine {
     this.injectMicIndicator();
     this.initListeningStateFromStorage();
     this.listenForRuntimeMessages();
+    this.checkAutoplayTrigger();
   }
 
   private safeSendMessage(message: any, callback?: (res: any) => void) {
@@ -684,17 +685,62 @@ export class NeuroVoiceEngine {
       return { action: "close_tab", value: "current", speak: "Closing current tab" };
     }
 
-    if (cmd.startsWith("play ") || cmd.startsWith("play song ")) {
-      const songName = cmd.replace("play song ", "").replace("play ", "").trim();
-      return { action: "click_link", value: songName, speak: "Playing " + songName };
+    // Check if command is a video play/open action (supporting English, Hindi, Hinglish variations)
+    const hasVideoWord = cmd.includes("video") || cmd.includes("वीडियो") || cmd.includes("ਵੀਡੀਓ");
+    const hasPlayActionWord = [
+      "play", "open", "click", "run", "start", "chalao", "kholo", "chalu", "chalaye",
+      "चलाओ", "खोलो", "खोल", "ਪਲੇ", "ਖੋਲੋ"
+    ].some(k => cmd.includes(k));
+
+    if (hasVideoWord && hasPlayActionWord) {
+      return { action: "click_video", value: "first", speak: "Playing video" };
     }
-    if (cmd === "play" || cmd === "play song") {
+
+    let songTarget = "";
+    const playPrefixes = [
+      "play song ", "play ", "chalao ", "chala do ", "play karo ", "बजाओ ", "चलाओ "
+    ];
+    const playSuffixes = [
+      " play karo", " chalao", " chala do", " play", " chalaona", " chalana",
+      " चलाओ", " चलाएं", " बजाओ", " प्ले करो"
+    ];
+
+    for (const pref of playPrefixes) {
+      if (cmd.startsWith(pref)) {
+        songTarget = cmd.slice(pref.length).trim();
+        break;
+      }
+    }
+
+    if (!songTarget) {
+      for (const suff of playSuffixes) {
+        if (cmd.endsWith(suff)) {
+          songTarget = cmd.slice(0, -suff.length).trim();
+          break;
+        }
+      }
+    }
+
+    if (songTarget) {
+      const genericTerms = ["video", "song", "that video", "this video", "the video", "it", "वीडियो", "ਵੀਡੀਓ"];
+      const isGeneric = genericTerms.includes(songTarget.toLowerCase());
+      if (isGeneric) {
+        return { action: "click_video", value: "first", speak: "Playing video" };
+      } else {
+        return {
+          action: "open_website",
+          value: `https://www.youtube.com/results?search_query=${encodeURIComponent(songTarget)}&autoplay=1`,
+          speak: "Playing " + songTarget
+        };
+      }
+    }
+    if (cmd === "play" || cmd === "play song" || cmd === "chalao" || cmd === "चलाओ") {
       return { action: "click_video", value: "first", speak: "Playing the first video" };
     }
 
-    if (cmd.startsWith("open ") || cmd.startsWith("go to ")) {
-      const target = cmd.replace("open ", "").replace("go to ", "").trim();
-      return { action: "open_website", value: target, speak: "Opening website " + target };
+    const openSiteRes = this.parseOpenWebsiteCommand(command);
+    if (openSiteRes) {
+      return openSiteRes;
     }
     if (cmd.startsWith("search ") || cmd.startsWith("find ")) {
       const query = cmd.replace("search ", "").replace("find ", "").trim();
@@ -983,6 +1029,411 @@ export class NeuroVoiceEngine {
       setTimeout(() => {
         if (this.voiceStatusOverlay) this.voiceStatusOverlay.style.display = "none";
       }, 300);
+    }
+  }
+
+  private transliterateDevanagari(text: string): string {
+    const charMap: { [key: string]: string } = {
+      'अ': 'a', 'आ': 'aa', 'इ': 'i', 'ई': 'ee', 'उ': 'u', 'ऊ': 'oo', 'ऋ': 'ri',
+      'ए': 'e', 'ऐ': 'ai', 'ओ': 'o', 'औ': 'au', 'अं': 'an', 'अः': 'ah',
+      'क': 'k', 'ख': 'kh', 'ग': 'g', 'घ': 'gh', 'ङ': 'n',
+      'च': 'ch', 'छ': 'chh', 'ज': 'j', 'झ': 'jh', 'ञ': 'n',
+      'ट': 't', 'ठ': 'th', 'ड': 'd', 'ढ': 'dh', 'ण': 'n',
+      'त': 't', 'थ': 'th', 'द': 'd', 'ध': 'dh', 'न': 'n',
+      'प': 'p', 'फ': 'ph', 'ब': 'b', 'भ': 'bh', 'म': 'm',
+      'य': 'y', 'र': 'r', 'ल': 'l', 'व': 'v', 'श': 'sh', 'ष': 'sh', 'स': 's', 'ह': 'h',
+      'क्ष': 'ksh', 'त्र': 'tr', 'ज्ञ': 'gy',
+      'ा': 'a', 'ि': 'i', 'ी': 'ee', 'ु': 'u', 'ू': 'oo', 'ृ': 'ri',
+      'े': 'e', 'ै': 'ai', 'ो': 'o', 'ौ': 'au', 'ं': 'n', 'ः': 'h', 'ँ': 'n',
+      '़': '', '्': ''
+    };
+    let resVal = "";
+    for (let i = 0; i < text.length; i++) {
+      const char = text[i];
+      if (charMap[char] !== undefined) {
+        resVal += charMap[char];
+      } else if (/[a-zA-Z0-9\-]/.test(char)) {
+        resVal += char;
+      }
+    }
+    return resVal;
+  }
+
+  private parseOpenWebsiteCommand(command: string): VoiceCommandResponse | null {
+    let cmd = command.toLowerCase().trim().replace(/[.,?!]+$/, "");
+    
+    // Normalize spoken dots
+    cmd = cmd.replace(/\s+dot\s+/g, ".");
+    cmd = cmd.replace(/\s+dot-([a-zA-Z]{2,})/g, ".$1");
+    cmd = cmd.replace(/\s+dot\s*([a-zA-Z]{2,})/g, ".$1");
+    cmd = cmd.replace(/\.\s+/g, ".");
+
+    if (["open settings", "go to settings", "show settings"].some(k => cmd.includes(k))) {
+      return { action: "open_website", value: "chrome://settings", speak: "Opening Settings" };
+    }
+    if (["open downloads", "go to downloads", "show downloads"].some(k => cmd.includes(k))) {
+      return { action: "open_website", value: "chrome://downloads", speak: "Opening Downloads" };
+    }
+
+    let target = "";
+    
+    // English prefixes including natural phrases
+    const engPrefixRegex = /^(?:please\s+open\s+|can\s+you\s+open\s+|take\s+me\s+to\s+|open\s+the\s+|open\s+|go\s+to\s+the\s+|go\s+to\s+|launch\s+|navigate\s+to\s+the\s+|navigate\s+to\s+|show\s+me\s+the\s+|show\s+me\s+)(.+)$/;
+    const match = cmd.match(engPrefixRegex);
+    if (match) {
+      target = match[1].trim();
+    } else {
+      // Hindi / Hinglish prefixes (English script)
+      const hindiPrefixes = ["kholo ", "chalao ", "open karo ", "chalu karo ", "ko open karo ", "ko kholo "];
+      for (const pref of hindiPrefixes) {
+        if (cmd.startsWith(pref)) {
+          target = cmd.slice(pref.length).trim();
+          break;
+        }
+      }
+      // Hindi / Hinglish prefixes (Devanagari script)
+      if (!target) {
+        const devanagariPrefixes = ["खोलो ", "चलाओ ", "ओपन करो ", "चालू करो ", "खोलना ", "को खोलो ", "को ओपन करो "];
+        for (const pref of devanagariPrefixes) {
+          if (cmd.startsWith(pref)) {
+            target = cmd.slice(pref.length).trim();
+            break;
+          }
+        }
+      }
+
+      // Hindi / Hinglish suffixes (English script)
+      if (!target) {
+        const hindiSuffixes = [" kholo", " khol", " open karo", " open karna", " chalao", " kholna", " chalu karo", " khol do", " kholo na", " ko open karo", " ko kholo", " ko khol do"];
+        for (const suff of hindiSuffixes) {
+          if (cmd.endsWith(suff)) {
+            target = cmd.slice(0, -suff.length).trim();
+            break;
+          }
+        }
+      }
+      // Hindi / Hinglish suffixes (Devanagari script)
+      if (!target) {
+        const devanagariSuffixes = [" खोलो", " खोल", " ओपन करो", " चालू करो", " खोल दो", " खोलना", " खोलो ना", " को खोलो", " को खोल दो", " को चालू करो"];
+        for (const suff of devanagariSuffixes) {
+          if (cmd.endsWith(suff)) {
+            target = cmd.slice(0, -suff.length).trim();
+            break;
+          }
+        }
+      }
+    }
+
+    // If no prefix/suffix matched, check if it contains "open" or "kholo" or "go to" inside
+    if (!target) {
+      for (const verb of ["open ", "kholo ", "go to ", "खोलो ", "खोल ", " chalao", " chalu karo"]) {
+        if (cmd.includes(verb)) {
+          const parts = cmd.split(verb);
+          if (parts.length > 1 && parts[1].trim()) {
+            target = parts[1].trim();
+            break;
+          }
+        }
+      }
+    }
+
+    // If still not found, check if it's a bare domain or single word
+    if (!target) {
+      if (!cmd.includes(" ") || /^[a-zA-Z0-9\-]+\.[a-zA-Z]{2,}(?:\.[a-zA-Z0-9\-]+)*\.[a-zA-Z]{2,}$/.test(cmd)) {
+        target = cmd;
+      }
+    }
+
+    if (!target) return null;
+
+    // Strip common website/app filler words from the target
+    const fillers = ["website", "web site", "app", "application", "portal", "page", "site", "online", "official"];
+    for (const filler of fillers) {
+      if (target.endsWith(" " + filler) || target.endsWith("-" + filler)) {
+        target = target.slice(0, -filler.length - 1).trim();
+      }
+      if (target.startsWith(filler + " ") || target.startsWith(filler + "-")) {
+        target = target.slice(filler.length + 1).trim();
+      }
+    }
+
+    // Strip introductory fillers
+    for (const filler of ["this ", "that ", "the ", "a ", "an "]) {
+      if (target.startsWith(filler)) {
+        target = target.slice(filler.length).trim();
+        break;
+      }
+    }
+
+    // Strip fillers again in case of "this website myntra"
+    for (const filler of fillers) {
+      if (target.endsWith(" " + filler) || target.endsWith("-" + filler)) {
+        target = target.slice(0, -filler.length - 1).trim();
+      }
+      if (target.startsWith(filler + " ") || target.startsWith(filler + "-")) {
+        target = target.slice(filler.length + 1).trim();
+      }
+    }
+
+    if (!target) return null;
+
+    let targetClean = target.replace(/\s+/g, "").replace(/-/g, "").replace(/_/g, "").replace(/\./g, "").toLowerCase();
+    if (!targetClean) return null;
+
+    // Transliterate if Devanagari script is found
+    const isDevanagari = /[\u0900-\u097F]/.test(targetClean);
+    if (isDevanagari) {
+      const transliterated = this.transliterateDevanagari(targetClean);
+      if (transliterated) {
+        targetClean = transliterated;
+      }
+    }
+
+    const WEBSITE_MAP: { [key: string]: [string, string] } = {
+      "myntra": ["https://www.myntra.com", "Myntra"],
+      "flipkart": ["https://www.flipkart.com", "Flipkart"],
+      "amazon": ["https://www.amazon.in", "Amazon"],
+      "amazonin": ["https://www.amazon.in", "Amazon India"],
+      "amazoncom": ["https://www.amazon.com", "Amazon US"],
+      "shopsy": ["https://www.shopsy.in", "Shopsy"],
+      "meesho": ["https://www.meesho.com", "Meesho"],
+      "ajio": ["https://www.ajio.com", "Ajio"],
+      "nykaa": ["https://www.nykaa.com", "Nykaa"],
+      "nykaaman": ["https://www.nykaaman.com", "Nykaa Man"],
+      "snapdeal": ["https://www.snapdeal.com", "Snapdeal"],
+      "croma": ["https://www.croma.com", "Croma"],
+      "reliancedigital": ["https://www.reliancedigital.in", "Reliance Digital"],
+      "tatacliq": ["https://www.tatacliq.com", "Tata Cliq"],
+      "jiomart": ["https://www.jiomart.com", "JioMart"],
+      "ebay": ["https://www.ebay.com", "eBay"],
+      "blinkit": ["https://www.blinkit.com", "Blinkit"],
+      "zepto": ["https://www.zepto.com", "Zepto"],
+      "bigbasket": ["https://www.bigbasket.com", "BigBasket"],
+      "swiggyinstamart": ["https://www.swiggy.com/instamart", "Swiggy Instamart"],
+      "swiggy": ["https://www.swiggy.com", "Swiggy"],
+      "zomato": ["https://www.zomato.com", "Zomato"],
+      "lenskart": ["https://www.lenskart.com", "Lenskart"],
+      "decathlon": ["https://www.decathlon.in", "Decathlon"],
+      "firstcry": ["https://www.firstcry.com", "FirstCry"],
+      "urbanic": ["https://www.urbanic.com", "Urbanic"],
+      "bewakoof": ["https://www.bewakoof.com", "Bewakoof"],
+      "zivame": ["https://www.zivame.com", "Zivame"],
+      "limeroad": ["https://www.limeroad.com", "LimeRoad"],
+      "pepperfry": ["https://www.pepperfry.com", "Pepperfry"],
+      "urbanladder": ["https://www.urbanladder.com", "Urban Ladder"],
+      "ikea": ["https://www.ikea.com", "IKEA"],
+      "coursera": ["https://www.coursera.org", "Coursera"],
+      "udemy": ["https://www.udemy.com", "Udemy"],
+      "khanacademy": ["https://www.khanacademy.org", "Khan Academy"],
+      "edx": ["https://www.edx.org", "edX"],
+      "wikipedia": ["https://www.wikipedia.org", "Wikipedia"],
+      "w3schools": ["https://www.w3schools.com", "W3Schools"],
+      "w3school": ["https://www.w3schools.com", "W3Schools"],
+      "geeksforgeeks": ["https://www.geeksforgeeks.org", "GeeksforGeeks"],
+      "gfg": ["https://www.geeksforgeeks.org", "GeeksforGeeks"],
+      "stackoverflow": ["https://stackoverflow.com", "Stack Overflow"],
+      "tutorialspoint": ["https://www.tutorialspoint.com", "Tutorialspoint"],
+      "studyiq": ["https://www.studyiq.com", "StudyIQ"],
+      "unacademy": ["https://unacademy.com", "Unacademy"],
+      "byjus": ["https://byjus.com", "BYJU'S"],
+      "physicswallah": ["https://www.pw.live", "Physics Wallah"],
+      "pw": ["https://www.pw.live", "Physics Wallah"],
+      "doubtnut": ["https://www.doubtnut.com", "Doubtnut"],
+      "brainly": ["https://brainly.in", "Brainly"],
+      "meritnation": ["https://www.meritnation.com", "Meritnation"],
+      "vedantu": ["https://www.vedantu.com", "Vedantu"],
+      "toppr": ["https://www.toppr.com", "Toppr"],
+      "testbook": ["https://testbook.com", "Testbook"],
+      "adda247": ["https://www.adda247.com", "Adda247"],
+      "codecademy": ["https://www.codecademy.com", "Codecademy"],
+      "freecodecamp": ["https://www.freecodecamp.org", "freeCodeCamp"],
+      "github": ["https://www.github.com", "GitHub"],
+      "gitlab": ["https://www.gitlab.com", "GitLab"],
+      "bitbucket": ["https://bitbucket.org", "BitBucket"],
+      "leetcode": ["https://leetcode.com", "LeetCode"],
+      "hackerrank": ["https://www.hackerrank.com", "HackerRank"],
+      "hackerearth": ["https://www.hackerearth.com", "HackerEarth"],
+      "javatpoint": ["https://www.javatpoint.com", "Javatpoint"],
+      "mdn": ["https://developer.mozilla.org", "MDN Web Docs"],
+      "developermozilla": ["https://developer.mozilla.org", "MDN Web Docs"],
+      "scribd": ["https://www.scribd.com", "Scribd"],
+      "researchgate": ["https://www.researchgate.net", "ResearchGate"],
+      "academia": ["https://www.academia.edu", "Academia"],
+      "jstor": ["https://www.jstor.org", "JSTOR"],
+      "duolingo": ["https://www.duolingo.com", "Duolingo"],
+      "google": ["https://www.google.com", "Google"],
+      "bing": ["https://www.bing.com", "Bing"],
+      "yahoo": ["https://www.yahoo.com", "Yahoo"],
+      "duckduckgo": ["https://duckduckgo.com", "DuckDuckGo"],
+      "chatgpt": ["https://chatgpt.com", "ChatGPT"],
+      "chatgptcom": ["https://chatgpt.com", "ChatGPT"],
+      "claude": ["https://claude.ai", "Claude AI"],
+      "gemini": ["https://gemini.google.com", "Gemini"],
+      "perplexity": ["https://www.perplexity.ai", "Perplexity AI"],
+      "copilot": ["https://copilot.microsoft.com", "Copilot"],
+      "midjourney": ["https://www.midjourney.com", "Midjourney"],
+      "youtube": ["https://www.youtube.com", "YouTube"],
+      "netflix": ["https://www.netflix.com", "Netflix"],
+      "primevideo": ["https://www.primevideo.com", "Prime Video"],
+      "hotstar": ["https://www.hotstar.com", "Hotstar"],
+      "jiocinema": ["https://www.jiocinema.com", "JioCinema"],
+      "zee5": ["https://www.zee5.com", "Zee5"],
+      "sonyliv": ["https://www.sonyliv.com", "SonyLIV"],
+      "spotify": ["https://www.spotify.com", "Spotify"],
+      "jiosaavn": ["https://www.jiosaavn.com", "JioSaavn"],
+      "gaana": ["https://gaana.com", "Gaana"],
+      "wynk": ["https://wynk.in", "Wynk Music"],
+      "youtubemusic": ["https://music.youtube.com", "YouTube Music"],
+      "twitch": ["https://www.twitch.tv", "Twitch"],
+      "bookmyshow": ["https://in.bookmyshow.com", "BookMyShow"],
+      "facebook": ["https://www.facebook.com", "Facebook"],
+      "instagram": ["https://www.instagram.com", "Instagram"],
+      "twitter": ["https://x.com", "Twitter"],
+      "x": ["https://x.com", "Twitter/X"],
+      "linkedin": ["https://www.linkedin.com", "LinkedIn"],
+      "reddit": ["https://www.reddit.com", "Reddit"],
+      "whatsapp": ["https://web.whatsapp.com", "WhatsApp"],
+      "telegram": ["https://web.telegram.org", "Telegram"],
+      "pinterest": ["https://www.pinterest.com", "Pinterest"],
+      "snapchat": ["https://web.snapchat.com", "Snapchat"],
+      "discord": ["https://discord.com", "Discord"],
+      "quora": ["https://www.quora.com", "Quora"],
+      "tumblr": ["https://www.tumblr.com", "Tumblr"],
+      "gmail": ["https://mail.google.com", "Gmail"],
+      "outlook": ["https://outlook.live.com", "Outlook"],
+      "yahoomail": ["https://mail.yahoo.com", "Yahoo Mail"],
+      "irctc": ["https://www.irctc.co.in", "IRCTC"],
+      "paytm": ["https://paytm.com", "Paytm"],
+      "phonepe": ["https://www.phonepe.com", "PhonePe"],
+      "gpay": ["https://pay.google.com", "Google Pay"],
+      "digilocker": ["https://www.digilocker.gov.in", "DigiLocker"],
+      "uidai": ["https://uidai.gov.in", "UIDAI"],
+      "incometax": ["https://www.incometax.gov.in", "Income Tax Portal"],
+      "sbi": ["https://www.onlinesbi.sbi", "State Bank of India"],
+      "hdfc": ["https://www.hdfcbank.com", "HDFC Bank"],
+      "icici": ["https://www.icicibank.com", "ICICI Bank"],
+      "axisbank": ["https://www.axisbank.com", "Axis Bank"],
+      "ndtv": ["https://www.ndtv.com", "NDTV"],
+      "timesofindia": ["https://timesofindia.indiatimes.com", "Times of India"],
+      "toi": ["https://timesofindia.indiatimes.com", "Times of India"],
+      "makemytrip": ["https://www.makemytrip.com", "MakeMyTrip"],
+      "goibibo": ["https://www.goibibo.com", "Goibibo"],
+      "yatra": ["https://www.yatra.com", "Yatra"],
+      "redbus": ["https://www.redbus.in", "RedBus"],
+      "ola": ["https://www.olacabs.com", "Ola Cabs"],
+      "uber": ["https://www.uber.com", "Uber"],
+      "maps": ["https://maps.google.com", "Google Maps"],
+      "googlemaps": ["https://maps.google.com", "Google Maps"],
+      "drive": ["https://drive.google.com", "Google Drive"],
+      "googledrive": ["https://drive.google.com", "Google Drive"],
+      "docs": ["https://docs.google.com", "Google Docs"],
+      "googledocs": ["https://docs.google.com", "Google Docs"],
+      "sheets": ["https://docs.google.com/spreadsheets", "Google Sheets"],
+      "googlesheets": ["https://docs.google.com/spreadsheets", "Google Sheets"],
+      "slides": ["https://docs.google.com/presentation", "Google Slides"],
+      "googleslides": ["https://docs.google.com/presentation", "Google Slides"],
+      "meet": ["https://meet.google.com", "Google Meet"],
+      "googlemeet": ["https://meet.google.com", "Google Meet"],
+      "zoom": ["https://zoom.us", "Zoom"],
+      "teams": ["https://teams.microsoft.com", "Microsoft Teams"],
+      "microsoftteams": ["https://teams.microsoft.com", "Microsoft Teams"],
+      "canva": ["https://www.canva.com", "Canva"],
+      "figma": ["https://www.figma.com", "Figma"],
+      "notion": ["https://www.notion.so", "Notion"],
+      "trello": ["https://trello.com", "Trello"],
+      "slack": ["https://slack.com", "Slack"]
+    };
+
+    // Hindi/Punjabi scriptMap equivalents
+    const scriptMap: { [key: string]: string } = {
+      "फ्लिपकार्ट": "flipkart", "मीशो": "meesho", "अमेज़न": "amazon", "एमेझॉन": "amazon",
+      "गूगल": "google", "यूट्यूब": "youtube", "फेसबुक": "facebook", "इंਸਟาਗ੍ਰਾਮ": "instagram",
+      "ट्विटर": "twitter", "लिंक्डइन": "linkedin", "नेटफ्लिक्स": "netflix", "जीमेल": "gmail",
+      "याहू": "yahoo", "विकिपीडिया": "wikipedia", "मिंत्रा": "myntra",
+      "ਫਲਿੱਪਕਾਰਟ": "flipkart", "ਮੀਸ਼ੋ": "meesho", "ਐਮਾਜ਼ਾਨ": "amazon", "ਗੂਗਲ": "google",
+      "ਯੂਟਿਊਬ": "youtube", "ਫੇਸਬੁੱਕ": "facebook", "ਇੰਸਟਾਗ੍ਰਾਮ": "instagram", "ਟਵਿੱਟਰ": "twitter",
+      "ਲਿੰਕਡਇਨ": "linkedin", "ਨੈੱਟਫਲਿਕਸ": "netflix", "जीਮੇਲ": "gmail", "ਮਿੰਤਰਾ": "myntra"
+    };
+
+    let mappedTarget = targetClean;
+    if (scriptMap[targetClean]) {
+      mappedTarget = scriptMap[targetClean];
+    }
+
+    if (WEBSITE_MAP[mappedTarget]) {
+      const [url, label] = WEBSITE_MAP[mappedTarget];
+      return { action: "open_website", value: url, speak: `Opening ${label}` };
+    }
+
+    // Substring match in map
+    for (const key of Object.keys(WEBSITE_MAP)) {
+      if (key.includes(mappedTarget) || mappedTarget.includes(key)) {
+        const [url, label] = WEBSITE_MAP[key];
+        return { action: "open_website", value: url, speak: `Opening ${label}` };
+      }
+    }
+
+    // Direct domain match
+    let targetDomain = target.toLowerCase().trim();
+    if (targetDomain.startsWith("https://")) {
+      targetDomain = targetDomain.slice(8);
+    } else if (targetDomain.startsWith("http://")) {
+      targetDomain = targetDomain.slice(7);
+    }
+    if (targetDomain.startsWith("www.")) {
+      targetDomain = targetDomain.slice(4);
+    }
+
+    if (/^[a-zA-Z0-9\-]+(?:\.[a-zA-Z0-9\-]+)*\.[a-zA-Z]{2,}$/.test(targetDomain)) {
+      return { action: "open_website", value: "https://" + targetDomain, speak: `Opening ${targetDomain}` };
+    }
+
+    // Fallback general-purpose .com
+    const urlDomain = mappedTarget.replace(/[^a-zA-Z0-9\-]/g, "");
+    if (urlDomain) {
+      return {
+        action: "open_website",
+        value: `https://www.${urlDomain}.com`,
+        speak: `Opening ${target.charAt(0).toUpperCase() + target.slice(1)}`
+      };
+    }
+
+    return null;
+  }
+
+  private checkAutoplayTrigger() {
+    try {
+      const urlParams = new URLSearchParams(window.location.search);
+      if (urlParams.get("autoplay") === "1") {
+        console.log("🎙️ Autoplay trigger detected in URL parameters!");
+        setTimeout(() => {
+          const selectors = [
+            'ytd-video-renderer a#video-title',
+            'a#video-title',
+            'a[href*="/watch?v="]',
+            'ytd-video-renderer a#thumbnail',
+            'a#thumbnail'
+          ];
+          let firstVideo: HTMLAnchorElement | null = null;
+          for (const selector of selectors) {
+            firstVideo = document.querySelector(selector) as HTMLAnchorElement | null;
+            if (firstVideo && firstVideo.href) {
+              break;
+            }
+          }
+          if (firstVideo && firstVideo.href) {
+            console.log("🎙️ Autoplay: Navigating directly to video:", firstVideo.href);
+            // Clean URL query parameter so refreshes don't trigger it again
+            const cleanUrl = window.location.href.replace(/[&?]autoplay=1/, "");
+            window.history.replaceState({}, document.title, cleanUrl);
+            window.location.href = firstVideo.href;
+          } else {
+            console.warn("🎙️ Autoplay: No video link found with href!");
+          }
+        }, 2200);
+      }
+    } catch (e) {
+      console.error("🎙️ Error in checkAutoplayTrigger:", e);
     }
   }
 }

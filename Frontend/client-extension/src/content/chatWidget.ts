@@ -1,3 +1,5 @@
+import { getTranslation } from "../utils/translations";
+
 export class NeuroChatWidget {
   private chatWidgetContainer: HTMLDivElement | null = null;
   private chatBody: HTMLDivElement | null = null;
@@ -13,6 +15,12 @@ export class NeuroChatWidget {
     this.createLayers();
     this.bindEvents();
     this.checkFirstLaunchAutoOpen();
+    try {
+      chrome.storage.local.get(["extensionLanguage"], (r) => {
+        const lang = r.extensionLanguage || "en";
+        this.setLanguage(lang);
+      });
+    } catch { /* ignore */ }
   }
 
   private checkFirstLaunchAutoOpen() {
@@ -202,20 +210,19 @@ export class NeuroChatWidget {
     this.chatWidgetContainer.className = "na-chat-box";
     this.chatWidgetContainer.innerHTML = `
       <div class="na-chat-head">
-        <span style="font-weight:700; font-size:14px;">♿ Accessibility Copilot</span>
+        <span id="naChatTitle" style="font-weight:700; font-size:14px;">♿ Accessibility Copilot</span>
         <div style="display:flex;align-items:center;gap:8px;">
           <span id="naChatSettingsBtn" style="cursor:pointer;font-size:14px;opacity:.75;transition:opacity .2s;" title="Open Settings">⚙️</span>
           <span style="cursor:pointer; font-size:12px;" id="naCloseChat">✕</span>
         </div>
       </div>
       <div class="na-chat-body">
-        <div class="na-msg-bot">
-          👋 Welcome to Neuro Assist!<br>
-          I'm your Accessibility Copilot. Tell me what accessibility difficulty you're facing, and I'll automatically configure the best accessibility settings for you.
+        <div class="na-msg-bot" id="naChatWelcomeContainer">
+          <span id="naChatWelcomeText">👋 Welcome to Neuro Assist!<br>I'm your Accessibility Copilot. Tell me what accessibility difficulty you're facing, and I'll automatically configure the best accessibility settings for you.</span>
           <div style="margin-top: 10px; display: flex; flex-direction: column; gap: 6px;" id="naWelcomeQuickActions">
-            <button class="na-quick-action-btn" data-msg="I can't read the text" style="background: #eff6ff; border: 1px solid #bfdbfe; color: #1e40af; padding: 7px 10px; border-radius: 10px; font-size: 11px; font-weight: 600; text-align: left; cursor: pointer; transition: all 0.15s; font-family: inherit;">👓 I can't read the text</button>
-            <button class="na-quick-action-btn" data-msg="I can't type" style="background: #eff6ff; border: 1px solid #bfdbfe; color: #1e40af; padding: 7px 10px; border-radius: 10px; font-size: 11px; font-weight: 600; text-align: left; cursor: pointer; transition: all 0.15s; font-family: inherit;">🎤 I can't type</button>
-            <button class="na-quick-action-btn" data-msg="I have difficulty using the mouse" style="background: #eff6ff; border: 1px solid #bfdbfe; color: #1e40af; padding: 7px 10px; border-radius: 10px; font-size: 11px; font-weight: 600; text-align: left; cursor: pointer; transition: all 0.15s; font-family: inherit;">🖱️ I have difficulty using the mouse</button>
+            <button class="na-quick-action-btn" id="naChatQaReadTextBtn" data-msg="I can't read the text" style="background: #eff6ff; border: 1px solid #bfdbfe; color: #1e40af; padding: 7px 10px; border-radius: 10px; font-size: 11px; font-weight: 600; text-align: left; cursor: pointer; transition: all 0.15s; font-family: inherit;">👓 I can't read the text</button>
+            <button class="na-quick-action-btn" id="naChatQaTypeBtn" data-msg="I can't type" style="background: #eff6ff; border: 1px solid #bfdbfe; color: #1e40af; padding: 7px 10px; border-radius: 10px; font-size: 11px; font-weight: 600; text-align: left; cursor: pointer; transition: all 0.15s; font-family: inherit;">🎤 I can't type</button>
+            <button class="na-quick-action-btn" id="naChatQaMouseBtn" data-msg="I have difficulty using the mouse" style="background: #eff6ff; border: 1px solid #bfdbfe; color: #1e40af; padding: 7px 10px; border-radius: 10px; font-size: 11px; font-weight: 600; text-align: left; cursor: pointer; transition: all 0.15s; font-family: inherit;">🖱️ I have difficulty using the mouse</button>
           </div>
         </div>
       </div>
@@ -379,7 +386,7 @@ export class NeuroChatWidget {
 
     const loadingEl = document.createElement("div");
     loadingEl.className = "na-msg-bot";
-    loadingEl.innerText = "Thinking...";
+    loadingEl.innerText = getTranslation("chatThinking", this.currentLanguage);
     this.chatBody.appendChild(loadingEl);
     this.chatBody.scrollTop = this.chatBody.scrollHeight;
 
@@ -405,7 +412,7 @@ export class NeuroChatWidget {
       }
     } catch {
       loadingEl.remove();
-      this.appendMessage("I've received your request and applied recommended accessibility settings.", "bot");
+      this.appendMessage(getTranslation("chatFallbackResponse", this.currentLanguage), "bot");
     }
   }
 
@@ -416,5 +423,56 @@ export class NeuroChatWidget {
     msgEl.innerText = text;
     this.chatBody.appendChild(msgEl);
     this.chatBody.scrollTop = this.chatBody.scrollHeight;
+  }
+
+  private currentLanguage: string = "en";
+
+  public setLanguage(lang: string) {
+    this.currentLanguage = lang;
+    if (!this.chatWidgetContainer) return;
+
+    const selectEl = <T extends HTMLElement>(selStr: string) => this.chatWidgetContainer!.querySelector(selStr) as T | null;
+
+    const chatTitle = selectEl<HTMLElement>("#naChatTitle");
+    if (chatTitle) chatTitle.textContent = getTranslation("chatTitle", lang);
+
+    const settingsBtn = selectEl<HTMLElement>("#naChatSettingsBtn");
+    if (settingsBtn) settingsBtn.setAttribute("title", getTranslation("chatSettingsTitle", lang));
+
+    const welcomeText = selectEl<HTMLElement>("#naChatWelcomeText");
+    if (welcomeText) welcomeText.innerHTML = getTranslation("chatWelcomeMsg", lang);
+
+    const qaReadBtn = selectEl<HTMLButtonElement>("#naChatQaReadTextBtn");
+    if (qaReadBtn) {
+      const txt = getTranslation("chatQaReadText", lang);
+      qaReadBtn.textContent = txt;
+      qaReadBtn.setAttribute("data-msg", txt);
+    }
+
+    const qaTypeBtn = selectEl<HTMLButtonElement>("#naChatQaTypeBtn");
+    if (qaTypeBtn) {
+      const txt = getTranslation("chatQaType", lang);
+      qaTypeBtn.textContent = txt;
+      qaTypeBtn.setAttribute("data-msg", txt);
+    }
+
+    const qaMouseBtn = selectEl<HTMLButtonElement>("#naChatQaMouseBtn");
+    if (qaMouseBtn) {
+      const txt = getTranslation("chatQaMouse", lang);
+      qaMouseBtn.textContent = txt;
+      qaMouseBtn.setAttribute("data-msg", txt);
+    }
+
+    const input = selectEl<HTMLInputElement>(".na-chat-input");
+    if (input) input.placeholder = getTranslation("chatPlaceholder", lang);
+
+    const sendBtn = selectEl<HTMLButtonElement>("#naChatSendBtn");
+    if (sendBtn) sendBtn.textContent = getTranslation("chatSendBtn", lang);
+
+    const micBtn = selectEl<HTMLButtonElement>("#naChatMicBtn");
+    if (micBtn) {
+      const isRec = micBtn.classList.contains("recording");
+      micBtn.title = isRec ? getTranslation("chatMicTitleStop", lang) : getTranslation("chatMicTitleListen", lang);
+    }
   }
 }

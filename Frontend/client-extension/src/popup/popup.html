@@ -358,6 +358,13 @@
       <div class="pp-sub">AI Accessibility Assistant · Gemini</div>
     </div>
     <div style="display:flex;align-items:center;gap:8px;">
+      <select id="ppExtensionLanguageSelect" class="pp-select" style="background:rgba(255,255,255,0.12) !important; border:1px solid rgba(255,255,255,0.18) !important; color:#fff !important; font-size:10.5px !important; padding:3px 6px !important; border-radius:8px !important; outline:none !important; cursor:pointer !important; -webkit-text-fill-color:#fff !important; max-width:85px !important; height:28px !important;">
+        <option value="en" style="color:#0f172a; background-color:#fff;">English</option>
+        <option value="es" style="color:#0f172a; background-color:#fff;">Español</option>
+        <option value="fr" style="color:#0f172a; background-color:#fff;">Français</option>
+        <option value="de" style="color:#0f172a; background-color:#fff;">Deutsch</option>
+        <option value="hi" style="color:#0f172a; background-color:#fff;">हिन्दी</option>
+      </select>
       <button id="ppChatHeaderBtn" title="Open Accessibility Copilot Chat" style="background:rgba(255,255,255,0.12);border:none;color:#fff;font-size:14px;width:28px;height:28px;border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all 0.2s;outline:none;">💬</button>
       <div class="pp-status-dot" title="Extension active"></div>
     </div>
@@ -374,7 +381,7 @@
         <!-- Header / Score Badge -->
         <div style="display: flex; align-items: center; justify-content: space-between;">
           <div style="display: flex; flex-direction: column; gap: 2px;">
-            <span style="font-size: 10px; font-weight: 800; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em;">Overall Accessibility</span>
+            <span id="ppScoreTitle" style="font-size: 10px; font-weight: 800; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em;">Overall Accessibility</span>
             <span id="ppScoreStatus" style="font-size: 13px; font-weight: 800; color: #10b981;">Analyzing...</span>
           </div>
           <div style="display: flex; align-items: baseline; gap: 2px; background: #f0fdf4; border: 1px solid #bbf7d0; padding: 4px 10px; border-radius: 10px;" id="ppScoreBadgeContainer">
@@ -386,26 +393,26 @@
         <!-- POUR Score Breakdown Grid -->
         <div class="pp-g2" style="gap: 6px;">
           <div style="background: #f8fafc; border: 1px solid #e2e8f0; padding: 6px 8px; border-radius: 8px; display: flex; justify-content: space-between; align-items: center;">
-            <span style="font-size: 9.5px; font-weight: 700; color: #475569;">👁️ Perceivable</span>
+            <span id="ppPourPerceivableLabel" style="font-size: 9.5px; font-weight: 700; color: #475569;">👁️ Perceivable</span>
             <span id="ppPourPerceivable" style="font-size: 11px; font-weight: 800; color: #3b82f6;">--</span>
           </div>
           <div style="background: #f8fafc; border: 1px solid #e2e8f0; padding: 6px 8px; border-radius: 8px; display: flex; justify-content: space-between; align-items: center;">
-            <span style="font-size: 9.5px; font-weight: 700; color: #475569;">🕹️ Operable</span>
+            <span id="ppPourOperableLabel" style="font-size: 9.5px; font-weight: 700; color: #475569;">🕹️ Operable</span>
             <span id="ppPourOperable" style="font-size: 11px; font-weight: 800; color: #3b82f6;">--</span>
           </div>
           <div style="background: #f8fafc; border: 1px solid #e2e8f0; padding: 6px 8px; border-radius: 8px; display: flex; justify-content: space-between; align-items: center;">
-            <span style="font-size: 9.5px; font-weight: 700; color: #475569;">🧠 Understandable</span>
+            <span id="ppPourUnderstandableLabel" style="font-size: 9.5px; font-weight: 700; color: #475569;">🧠 Understandable</span>
             <span id="ppPourUnderstandable" style="font-size: 11px; font-weight: 800; color: #3b82f6;">--</span>
           </div>
           <div style="background: #f8fafc; border: 1px solid #e2e8f0; padding: 6px 8px; border-radius: 8px; display: flex; justify-content: space-between; align-items: center;">
-            <span style="font-size: 9.5px; font-weight: 700; color: #475569;">⚙️ Robust</span>
+            <span id="ppPourRobustLabel" style="font-size: 9.5px; font-weight: 700; color: #475569;">⚙️ Robust</span>
             <span id="ppPourRobust" style="font-size: 11px; font-weight: 800; color: #3b82f6;">--</span>
           </div>
         </div>
 
         <!-- Website Issues Summary List -->
         <div style="display: flex; flex-direction: column; gap: 4px;">
-          <span style="font-size: 9.5px; font-weight: 800; color: #64748b; text-transform: uppercase; letter-spacing: 0.04em;">Website Issues Summary</span>
+          <span id="ppIssuesTitle" style="font-size: 9.5px; font-weight: 800; color: #64748b; text-transform: uppercase; letter-spacing: 0.04em;">Website Issues Summary</span>
           <ul id="ppIssuesList" style="list-style: none; display: flex; flex-direction: column; gap: 6px; font-size: 10px; color: #334155; max-height: 105px; overflow-y: auto; padding: 0 2px 0 0; scrollbar-width: thin;">
             <li style="padding: 6px 10px; background: #eff6ff; border-radius: 8px; color: #1e40af; border: 1px solid #dbeafe; font-size: 10px;">ℹ️ Scanning page accessibility...</li>
           </ul>
@@ -422,9 +429,9 @@
         </button>
       </div>
 
-      <div class="pp-sec">👋 Assistant Modules</div>
+      <div class="pp-sec" id="ppModulesTitle">👋 Assistant Modules</div>
       <div class="pp-card" id="ppAssistantModulesCard">
-        <button class="pp-mod-btn" data-ws="ppWsGesture">
+        <button class="pp-mod-btn" data-ws="ppWsGesture" id="ppBtnGestureNav">
           <span style="font-size:15px">🖐️</span>Gestures &amp; Sign Translate
           <span class="pp-chevron">›</span>
         </button>
@@ -435,7 +442,7 @@
           </span>
           <span class="pp-chevron" id="ppVoiceChevron">›</span>
         </button>
-        <button class="pp-mod-btn" data-ws="ppWsVisual">
+        <button class="pp-mod-btn" data-ws="ppWsVisual" id="ppBtnVisualNav">
           <span style="font-size:15px">🧠</span>Visual Comfort &amp; Fonts
           <span class="pp-chevron">›</span>
         </button>
@@ -451,14 +458,14 @@
         <div id="ppCamOverlay">CAMERA INACTIVE</div>
       </div>
       <div class="pp-card" style="padding:10px 12px;flex-direction:column;gap:4px;display:flex;">
-        <span style="font-size:9px;font-weight:700;color:#64748b;text-transform:uppercase;">Gesture Status</span>
+        <span id="ppGestureStatusLabel" style="font-size:9px;font-weight:700;color:#64748b;text-transform:uppercase;">Gesture Status</span>
         <span id="ppGestureStatus" style="font-size:15px;font-weight:800;color:#3b82f6;">None</span>
       </div>
       <div class="pp-card">
         <div class="pp-row">
           <div class="pp-row-info">
-            <span class="pp-row-label">Active DOM Actions</span>
-            <span class="pp-row-desc">Hand signs trigger SCROLL &amp; CLICK.</span>
+            <span class="pp-row-label" id="ppGestureActiveActionsLabel">Active DOM Actions</span>
+            <span class="pp-row-desc" id="ppGestureActiveActionsDesc">Hand signs trigger SCROLL &amp; CLICK.</span>
           </div>
           <label class="pp-toggle">
             <input type="checkbox" id="ppGestureToggle" checked>
@@ -486,16 +493,16 @@
           <span class="pp-vbar"></span>
         </div>
         <div class="pp-steps">
-          <div class="pp-step active" id="ppStepListen"><div class="pp-step-dot">1</div><span>Listening</span></div>
-          <div class="pp-step" id="ppStepProcess"><div class="pp-step-dot">2</div><span>Processing</span></div>
-          <div class="pp-step" id="ppStepDone"><div class="pp-step-dot">3</div><span>Executed</span></div>
+          <div class="pp-step active" id="ppStepListen"><div class="pp-step-dot">1</div><span id="ppStepListenLabel">Listening</span></div>
+          <div class="pp-step" id="ppStepProcess"><div class="pp-step-dot">2</div><span id="ppStepProcessLabel">Processing</span></div>
+          <div class="pp-step" id="ppStepDone"><div class="pp-step-dot">3</div><span id="ppStepDoneLabel">Executed</span></div>
         </div>
         <div class="pp-transcript" id="ppTranscript">Say a command (e.g. "scroll down", "go back")…</div>
       </div>
       <div id="ppNoMicView" style="display:none;">
         <div style="background:#fff5f5;border:1px dashed #feb2b2;border-radius:12px;padding:14px;display:flex;flex-direction:column;align-items:center;gap:10px;text-align:center;">
           <div style="font-size:13px;font-weight:800;color:#c53030;">⚠️ No Microphone</div>
-          <p style="font-size:11px;color:#742a2a;line-height:1.5;margin:0;">No audio input found. Plug in a mic or use the simulator.</p>
+          <p id="ppNoMicDesc" style="font-size:11px;color:#742a2a;line-height:1.5;margin:0;">No audio input found. Plug in a mic or use the simulator.</p>
           <div style="display:flex;gap:6px;width:100%;">
             <button class="pp-btn pp-btn-ghost" id="ppRetryMic" style="flex:1;font-size:10px;">🔄 Retry</button>
             <button class="pp-btn pp-btn-ghost" id="ppSimBypass" style="flex:1;font-size:10px;">⌨️ Simulator</button>
@@ -505,8 +512,8 @@
       <div class="pp-card">
         <div class="pp-row">
           <div class="pp-row-info">
-            <span class="pp-row-label">🌐 Language</span>
-            <span class="pp-row-desc">Recognition &amp; synthesis</span>
+            <span class="pp-row-label" id="ppVoiceLanguageLabel">🌐 Language</span>
+            <span class="pp-row-desc" id="ppVoiceLanguageDesc">Recognition &amp; synthesis</span>
           </div>
           <select class="pp-select" id="languageSelect">
             <option value="en-IN">English</option>
@@ -536,25 +543,25 @@
       <div class="pp-g2">
         <div class="pp-card">
           <div class="pp-row" style="border-radius:10px;border:none;">
-            <span class="pp-row-label" style="font-size:10px;">AI Simplifier</span>
+            <span class="pp-row-label" id="ppSimplifierLabel" style="font-size:10px;">AI Simplifier</span>
             <label class="pp-toggle"><input type="checkbox" id="ppSimplifierCb"><span class="pp-slider"></span></label>
           </div>
         </div>
         <div class="pp-card">
           <div class="pp-row" style="border-radius:10px;border:none;">
-            <span class="pp-row-label" style="font-size:10px;">Dyslexia Font</span>
+            <span class="pp-row-label" id="ppDyslexiaLabel" style="font-size:10px;">Dyslexia Font</span>
             <label class="pp-toggle"><input type="checkbox" id="ppDyslexiaCb"><span class="pp-slider"></span></label>
           </div>
         </div>
       </div>
       <div class="pp-g3">
-        <div class="pp-sc"><span class="pp-sc-lbl">Font Size</span><div class="pp-stepper"><button class="pp-step-btn" id="ppFontDec">−</button><span class="pp-step-val" id="ppFontVal">100%</span><button class="pp-step-btn" id="ppFontInc">+</button></div></div>
-        <div class="pp-sc"><span class="pp-sc-lbl">Line Spacing</span><div class="pp-stepper"><button class="pp-step-btn" id="ppLineDec">−</button><span class="pp-step-val" id="ppLineVal">1.5x</span><button class="pp-step-btn" id="ppLineInc">+</button></div></div>
-        <div class="pp-sc"><span class="pp-sc-lbl">Letters</span><div class="pp-stepper"><button class="pp-step-btn" id="ppLetterDec">−</button><span class="pp-step-val" id="ppLetterVal">0px</span><button class="pp-step-btn" id="ppLetterInc">+</button></div></div>
+        <div class="pp-sc"><span class="pp-sc-lbl" id="ppFontSizeLabel">Font Size</span><div class="pp-stepper"><button class="pp-step-btn" id="ppFontDec">−</button><span class="pp-step-val" id="ppFontVal">100%</span><button class="pp-step-btn" id="ppFontInc">+</button></div></div>
+        <div class="pp-sc"><span class="pp-sc-lbl" id="ppLineSpacingLabel">Line Spacing</span><div class="pp-stepper"><button class="pp-step-btn" id="ppLineDec">−</button><span class="pp-step-val" id="ppLineVal">1.5x</span><button class="pp-step-btn" id="ppLineInc">+</button></div></div>
+        <div class="pp-sc"><span class="pp-sc-lbl" id="ppLetterSpacingLabel">Letters</span><div class="pp-stepper"><button class="pp-step-btn" id="ppLetterDec">−</button><span class="pp-step-val" id="ppLetterVal">0px</span><button class="pp-step-btn" id="ppLetterInc">+</button></div></div>
       </div>
       <div class="pp-g3">
         <div class="pp-sc" style="align-items:flex-start;gap:3px;">
-          <span class="pp-sc-lbl">Theme</span>
+          <span class="pp-sc-lbl" id="ppThemeLabel">Theme</span>
           <select class="pp-select" id="ppThemeSelect" style="width:100%;">
             <option value="none">Default</option>
             <option value="hc-dark">HC Dark</option>
@@ -563,7 +570,7 @@
           </select>
         </div>
         <div class="pp-sc" style="align-items:flex-start;gap:3px;">
-          <span class="pp-sc-lbl">Color-Blind</span>
+          <span class="pp-sc-lbl" id="ppColorBlindLabel">Color-Blind</span>
           <select class="pp-select" id="ppColorBlindSelect" style="width:100%;">
             <option value="none">None</option>
             <option value="protanopia">Protan</option>
@@ -571,19 +578,19 @@
             <option value="tritanopia">Tritan</option>
           </select>
         </div>
-        <div class="pp-sc"><span class="pp-sc-lbl">Contrast</span><div class="pp-stepper"><button class="pp-step-btn" id="ppContrastDec">−</button><span class="pp-step-val" id="ppContrastVal">100%</span><button class="pp-step-btn" id="ppContrastInc">+</button></div></div>
+        <div class="pp-sc"><span class="pp-sc-lbl" id="ppContrastLabel">Contrast</span><div class="pp-stepper"><button class="pp-step-btn" id="ppContrastDec">−</button><span class="pp-step-val" id="ppContrastVal">100%</span><button class="pp-step-btn" id="ppContrastInc">+</button></div></div>
       </div>
-      <div class="pp-preview">Real-time Preview: Spacing, font scale, contrast and visual theme apply here instantly.</div>
+      <div class="pp-preview" id="ppVisualPreviewText">Real-time Preview: Spacing, font scale, contrast and visual theme apply here instantly.</div>
     </div>
 
     <!-- ════ WORKSPACE: Copilot / Profile ══════════════════════ -->
     <div class="pp-ws" id="ppWsCopilot">
       <div class="pp-ws-title">🤖 AI Copilot Task Fill &amp; Profile</div>
       <div class="pp-card" style="padding:12px;display:flex;flex-direction:column;gap:8px;">
-        <div style="font-size:10px;font-weight:800;color:#1e293b;text-transform:uppercase;letter-spacing:.04em;">✨ Form Autofill &amp; Navigation Agent</div>
-        <span style="font-size:9px;color:#64748b;line-height:1.4;">Scans all form fields and generates AI predictions using your Profile Memory.</span>
+        <div id="ppCopilotTitle" style="font-size:10px;font-weight:800;color:#1e293b;text-transform:uppercase;letter-spacing:.04em;">✨ Form Autofill &amp; Navigation Agent</div>
+        <span id="ppCopilotDesc" style="font-size:9px;color:#64748b;line-height:1.4;">Scans all form fields and generates AI predictions using your Profile Memory.</span>
         <div style="display:flex;flex-direction:column;gap:3px;">
-          <span style="font-size:9px;font-weight:700;color:#475569;">Goal Instruction:</span>
+          <span id="ppCopilotGoalLabel" style="font-size:9px;font-weight:700;color:#475569;">Goal Instruction:</span>
           <input class="pp-input" type="text" id="ppCopilotPrompt" placeholder="e.g. Autofill job application, search and add to cart…">
         </div>
         <div style="display:flex;gap:6px;">
@@ -592,7 +599,7 @@
         </div>
       </div>
       <div class="pp-card" style="padding:12px;display:flex;flex-direction:column;gap:8px;">
-        <div style="font-size:10px;font-weight:800;color:#0f172a;text-transform:uppercase;">👤 Profile Memory</div>
+        <div id="ppCopilotProfileTitle" style="font-size:10px;font-weight:800;color:#0f172a;text-transform:uppercase;">👤 Profile Memory</div>
         <div class="pp-g2">
           <input class="pp-input" type="text"  id="ppProfName"    placeholder="Full Name">
           <input class="pp-input" type="email" id="ppProfEmail"   placeholder="Email">

@@ -2,6 +2,7 @@
 export {};
 
 import { setLanguage } from "../voice/languageManager";
+import { getTranslation } from "../utils/translations";
 
 // ── Blocked pages ─────────────────────────────────────────────────────────────
 const BLOCKED = ["chrome://","chrome-extension://","about:","edge://","moz-extension://"];
@@ -545,4 +546,306 @@ btn("ppExecuteGoalBtn")?.addEventListener("click", async () => {
 // =============================================================================
 chrome.runtime.onMessage.addListener(msg => {
   if (msg.type === "VOICE_STATE_CHANGED") syncVoiceBadge(msg.isListening);
+});
+
+let currentExtensionLanguage = "en";
+
+function applyLanguage(lang: string) {
+  currentExtensionLanguage = lang;
+
+  const setText = (id: string, key: string) => {
+    const elObj = el(id);
+    if (elObj) elObj.textContent = getTranslation(key as any, lang);
+  };
+
+  const setPlaceholder = (id: string, key: string) => {
+    const elObj = el<HTMLInputElement>(id);
+    if (elObj) elObj.placeholder = getTranslation(key as any, lang);
+  };
+
+  const setTitle = (id: string, key: string) => {
+    const elObj = el(id);
+    if (elObj) elObj.setAttribute("title", getTranslation(key as any, lang));
+  };
+
+  // Header & Navigation
+  setText("ppBackBtn", "backBtn");
+  setText("ppTitle", "title");
+  setText("ppSub", "sub");
+  setTitle("ppChatHeaderBtn", "chatHeaderBtnTitle");
+  setTitle("ppStatusDot", "statusDotTitle");
+
+  // Score card
+  setText("ppScoreTitle", "scoreTitle");
+  const scoreStatusEl = el("ppScoreStatus");
+  if (scoreStatusEl) {
+    const currentStatusText = scoreStatusEl.textContent || "";
+    if (["Analyzing...", "Analizando...", "Analyse en cours...", "Analysieren...", "विश्लेषण किया जा रहा है..."].includes(currentStatusText)) {
+      scoreStatusEl.textContent = getTranslation("scoreStatusAnalyzing", lang);
+    } else if (["Rescanning...", "Reescaneando...", "Réanalyse...", "Prüfe erneut...", "पुनः स्कैन जारी..."].includes(currentStatusText)) {
+      scoreStatusEl.textContent = getTranslation("rescanning", lang);
+    } else if (["Excellent", "Excelente", "Hervorragend", "उत्कृष्ट"].includes(currentStatusText)) {
+      scoreStatusEl.textContent = getTranslation("scoreStatusExcellent", lang);
+    } else if (["Good", "Bueno", "Bon", "Gut", "अच्छा"].includes(currentStatusText)) {
+      scoreStatusEl.textContent = getTranslation("scoreStatusGood", lang);
+    } else if (["Fair", "Aceptable", "Moyen", "Mittelmäßig", "ठीक-ठाक"].includes(currentStatusText)) {
+      scoreStatusEl.textContent = getTranslation("scoreStatusFair", lang);
+    } else if (["Poor", "Deficiente", "Médiocre", "Schlecht", "खराब"].includes(currentStatusText)) {
+      scoreStatusEl.textContent = getTranslation("scoreStatusPoor", lang);
+    }
+  }
+
+  setText("ppPourPerceivableLabel", "pourPerceivable");
+  setText("ppPourOperableLabel", "pourOperable");
+  setText("ppPourUnderstandableLabel", "pourUnderstandable");
+  setText("ppPourRobustLabel", "pourRobust");
+  setText("ppIssuesTitle", "issuesTitle");
+
+  const issuesList = el("ppIssuesList");
+  if (issuesList && issuesList.children.length > 0) {
+    const firstLi = issuesList.children[0] as HTMLElement;
+    if (firstLi && firstLi.textContent) {
+      if (firstLi.textContent.includes("Scanning page") || firstLi.textContent.includes("Escaneando") || firstLi.textContent.includes("Analyse") || firstLi.textContent.includes("Prüfung") || firstLi.textContent.includes("स्कैन")) {
+        firstLi.textContent = getTranslation("issuesScanning", lang);
+      } else if (firstLi.textContent.includes("Great!") || firstLi.textContent.includes("Excelente!") || firstLi.textContent.includes("Super!") || firstLi.textContent.includes("Großartig!") || firstLi.textContent.includes("बहुत बढ़िया!")) {
+        firstLi.innerHTML = `🟢 ${getTranslation("issuesNone", lang).replace("🟢 ", "")}`;
+      }
+    }
+  }
+
+  setText("ppExplainAiBtn", "explainAi");
+  const refreshScoreBtn = btn("ppRefreshScoreBtn");
+  if (refreshScoreBtn) {
+    refreshScoreBtn.textContent = `🔄 ${getTranslation("refreshScore", lang).replace("🔄 ", "")}`;
+  }
+
+  // Modules menu
+  setText("ppModulesTitle", "modulesTitle");
+  const btnGestureNav = btn("ppBtnGestureNav");
+  if (btnGestureNav) {
+    btnGestureNav.innerHTML = `<span style="font-size:15px">🖐️</span> ${getTranslation("modGesture", lang).replace("🖐️ ", "")} <span class="pp-chevron">›</span>`;
+  }
+  const btnVoiceNav = btn("ppBtnVoiceNav");
+  if (btnVoiceNav) {
+    const isLit = el("ppListenBadge")?.style.display !== "none";
+    btnVoiceNav.innerHTML = `<span style="font-size:15px">🎙️</span> ${getTranslation("modVoice", lang).replace("🎙️ ", "")}
+      <span class="pp-listen-badge" id="ppListenBadge" style="display: ${isLit ? "inline-flex" : "none"};">
+        <span class="pp-listen-dot"></span>${getTranslation("modVoiceListening", lang)}
+      </span>
+      <span class="pp-chevron" id="ppVoiceChevron" style="display: ${isLit ? "none" : ""};">›</span>`;
+  }
+  const btnVisualNav = btn("ppBtnVisualNav");
+  if (btnVisualNav) {
+    btnVisualNav.innerHTML = `<span style="font-size:15px">🧠</span> ${getTranslation("modVisual", lang).replace("🧠 ", "")} <span class="pp-chevron">›</span>`;
+  }
+
+  // Gesture Workspace
+  setText("ppWsGestureTitle", "wsGestureTitle");
+  const overlay = el("ppCamOverlay");
+  if (overlay) {
+    const text = overlay.textContent || "";
+    if (text.includes("INACTIVE") || text.includes("INACTIVA") || text.includes("INACTIVE") || text.includes("INAKTIV") || text.includes("निष्क्रिय")) {
+      overlay.textContent = getTranslation("camInactive", lang);
+    } else {
+      overlay.textContent = getTranslation("camActive", lang);
+    }
+  }
+  setText("ppGestureStatusLabel", "gestureStatusLabel");
+  const gestureStatus = el("ppGestureStatus");
+  if (gestureStatus) {
+    const currentStatus = gestureStatus.textContent || "";
+    if (currentStatus === "None" || currentStatus === "Ninguno" || currentStatus === "Aucun" || currentStatus === "Keine" || currentStatus === "कोई नहीं") {
+      gestureStatus.textContent = getTranslation("gestureStatusNone", lang);
+    } else if (currentStatus === "Running" || currentStatus === "Ejecutando" || currentStatus === "Actif" || currentStatus === "Aktiv" || currentStatus === "चालू है") {
+      gestureStatus.textContent = getTranslation("gestureStatusRunning", lang);
+    }
+  }
+  setText("ppGestureActiveActionsLabel", "gestureDomLabel");
+  setText("ppGestureActiveActionsDesc", "gestureDomDesc");
+
+  const startGestureBtn = btn("ppStartGestureBtn");
+  if (startGestureBtn) {
+    startGestureBtn.textContent = `📷 ${getTranslation("gestureStartBtn", lang).replace("📷 ", "")}`;
+  }
+  const stopGestureBtn = btn("ppStopGestureBtn");
+  if (stopGestureBtn) {
+    stopGestureBtn.textContent = `⏹ ${getTranslation("gestureStopBtn", lang).replace("⏹ ", "")}`;
+  }
+
+  // Voice Workspace
+  setText("ppWsVoiceTitle", "wsVoiceTitle");
+  const micBadge = el("ppMicBadge");
+  if (micBadge) {
+    const isOk = micBadge.classList.contains("pp-mic-ready");
+    micBadge.innerHTML = isOk
+      ? `<span class="pp-mic-dot"></span> ${getTranslation("micReady", lang)}`
+      : `<span class="pp-mic-dot"></span> ${getTranslation("noMic", lang)}`;
+  }
+  setText("ppStepListenLabel", "stepListen");
+  setText("ppStepProcessLabel", "stepProcess");
+  setText("ppStepDoneLabel", "stepExecuted");
+
+  const transcript = el("ppTranscript");
+  if (transcript) {
+    const text = transcript.textContent || "";
+    if (text.includes("Say a command") || text.includes("Diga un") || text.includes("Dites une") || text.includes("Sagen Sie") || text.includes("कोई कमांड")) {
+      transcript.textContent = getTranslation("transcriptSayCmd", lang);
+    } else if (text.includes("Listening… speak now") || text.includes("Escuchando...") || text.includes("Écoute en cours") || text.includes("Hören...") || text.includes("सुन रहा है")) {
+      transcript.textContent = getTranslation("transcriptListening", lang);
+    } else if (text.includes("Processing…") || text.includes("Procesando…") || text.includes("Traitement…") || text.includes("Verarbeiten…") || text.includes("प्रोसेस किया जा रहा है")) {
+      transcript.textContent = getTranslation("transcriptProcessing", lang);
+    } else if (text.includes("Executed:") || text.includes("Ejecutado:") || text.includes("Exécuté:") || text.includes("Ausgeführt:") || text.includes("निष्पादित:")) {
+      const parts = text.split('"');
+      const cmd = parts.length > 1 ? parts[1] : "";
+      transcript.textContent = `${getTranslation("transcriptExecutedPrefix", lang)}"${cmd}"`;
+    }
+  }
+
+  const noMicTitle = el("ppNoMicView")?.querySelector("div");
+  if (noMicTitle) noMicTitle.textContent = `⚠️ ${getTranslation("noMicTitle", lang).replace("⚠️ ", "")}`;
+  setText("ppNoMicDesc", "noMicDesc");
+  const retryMicBtn = btn("ppRetryMic");
+  if (retryMicBtn) retryMicBtn.textContent = `🔄 ${getTranslation("retryBtn", lang).replace("🔄 ", "")}`;
+  const simBypassBtn = btn("ppSimBypass");
+  if (simBypassBtn) simBypassBtn.textContent = `⌨️ ${getTranslation("simBypassBtn", lang).replace("⌨️ ", "")}`;
+
+  setText("ppVoiceLanguageLabel", "voiceLangLabel");
+  setText("ppVoiceLanguageDesc", "voiceLangDesc");
+
+  const startVoice = btn("startVoice");
+  if (startVoice) startVoice.textContent = `🎤 ${getTranslation("voiceStartBtn", lang).replace("🎤 ", "")}`;
+  const stopVoice = btn("stopVoice");
+  if (stopVoice) stopVoice.textContent = `⏹ ${getTranslation("voiceStopBtn", lang).replace("⏹ ", "")}`;
+
+  const voiceStatus = el("voiceStatus");
+  if (voiceStatus) {
+    const text = voiceStatus.textContent || "";
+    if (text === "Ready" || text === "Listo" || text === "Prêt" || text === "Bereit" || text === "तैयार") {
+      voiceStatus.textContent = getTranslation("voiceStatusReady", lang);
+    } else if (text === "Stopped" || text === "Detenido" || text === "Arrêté" || text === "Gestoppt" || text === "रोका गया") {
+      voiceStatus.textContent = getTranslation("voiceStatusStopped", lang);
+    } else {
+      voiceStatus.textContent = getTranslation("voiceStatusListening", lang);
+    }
+  }
+
+  const devToggle = btn("ppDevToggle");
+  if (devToggle) {
+    const isExpanded = devToggle.textContent?.includes("▼");
+    devToggle.innerHTML = `<span id="ppDevArrow">${isExpanded ? "▼" : "▶"}</span> ${getTranslation("devToggleTitle", lang)}`;
+  }
+  setPlaceholder("ppSimInput", "devSimInputPlaceholder");
+  setText("ppSimSend", "devSimSend");
+
+  // Visual Workspace
+  setText("ppWsVisualTitle", "wsVisualTitle");
+  setText("ppSimplifierLabel", "simplifierLabel");
+  setText("ppDyslexiaLabel", "dyslexiaLabel");
+  setText("ppFontSizeLabel", "fontSizeLabel");
+  setText("ppLineSpacingLabel", "lineSpacingLabel");
+  setText("ppLetterSpacingLabel", "lettersLabel");
+  setText("ppContrastLabel", "contrastLabel");
+  setText("ppThemeLabel", "themeLabel");
+
+  const themeSelect = sel("ppThemeSelect");
+  if (themeSelect) {
+    themeSelect.options[0].text = getTranslation("themeDefault", lang);
+    themeSelect.options[1].text = getTranslation("themeHcDark", lang);
+    themeSelect.options[2].text = getTranslation("themeHcLight", lang);
+    themeSelect.options[3].text = getTranslation("themeGrayscale", lang);
+  }
+
+  setText("ppColorBlindLabel", "colorBlindLabel");
+  const cbSelect = sel("ppColorBlindSelect");
+  if (cbSelect) {
+    cbSelect.options[0].text = getTranslation("cbNone", lang);
+    cbSelect.options[1].text = getTranslation("cbProtan", lang);
+    cbSelect.options[2].text = getTranslation("cbDeuter", lang);
+    cbSelect.options[3].text = getTranslation("cbTritan", lang);
+  }
+  setText("ppVisualPreviewText", "visualPreviewText");
+
+  // Copilot Workspace
+  setText("ppWsCopilotTitle", "wsCopilotTitle");
+  setText("ppCopilotTitle", "copilotAutofillTitle");
+  setText("ppCopilotDesc", "copilotAutofillDesc");
+  setText("ppCopilotGoalLabel", "copilotGoalLabel");
+  setPlaceholder("ppCopilotPrompt", "copilotGoalPlaceholder");
+  setText("ppScanFillBtn", "copilotScanBtn");
+  setText("ppExecuteGoalBtn", "copilotExecBtn");
+  setText("ppCopilotProfileTitle", "copilotProfTitle");
+
+  setPlaceholder("ppProfName", "profNamePh");
+  setPlaceholder("ppProfEmail", "profEmailPh");
+  setPlaceholder("ppProfPhone", "profPhonePh");
+  setPlaceholder("ppProfDob", "profDobPh");
+  setPlaceholder("ppProfAddress", "profAddressPh");
+  setPlaceholder("ppProfCity", "profCityPh");
+  setPlaceholder("ppProfState", "profStatePh");
+  setPlaceholder("ppProfCountry", "profCountryPh");
+  setPlaceholder("ppProfPostal", "profPostalPh");
+  setPlaceholder("ppProfGender", "profGenderPh");
+
+  setText("ppSaveProfileBtn", "profSaveBtn");
+  setText("ppResetProfileBtn", "profResetBtn");
+  setText("ppDeleteProfileBtn", "profDeleteBtn");
+
+  const copilotStatusText = el("ppCopilotStatusText");
+  if (copilotStatusText) {
+    const text = copilotStatusText.textContent || "";
+    if (text.includes("idle") || text.includes("inactivo") || text.includes("inactif") || text.includes("निष्क्रिय")) {
+      copilotStatusText.textContent = getTranslation("copilotStatusIdle", lang);
+    } else if (text.includes("Scanning page") || text.includes("Escaneando") || text.includes("Analyse") || text.includes("Scanne") || text.includes("स्कैन")) {
+      copilotStatusText.textContent = getTranslation("copilotStatusScanning", lang);
+    } else if (text.includes("triggered") || text.includes("activado") || text.includes("déclenché") || text.includes("gestartet") || text.includes("शुरू")) {
+      copilotStatusText.textContent = getTranslation("copilotStatusTriggered", lang);
+    } else if (text.includes("Planning") || text.includes("Planificando") || text.includes("Planification") || text.includes("Plane") || text.includes("योजना")) {
+      copilotStatusText.textContent = getTranslation("copilotStatusPlanning", lang);
+    } else if (text.includes("completed") || text.includes("completado") || text.includes("complété") || text.includes("abgeschlossen") || text.includes("पूरी हुई")) {
+      copilotStatusText.textContent = getTranslation("copilotStatusCompleted", lang);
+    }
+  }
+
+  // Footer
+  const badge = el("ppModulesTitle")?.parentElement?.querySelector(".pp-badge");
+  if (badge) {
+    badge.textContent = getTranslation("footerBadge", lang);
+  }
+  const undoBtn = btn("ppUndoBtn");
+  if (undoBtn) {
+    const text = undoBtn.textContent || "";
+    if (text.includes("Reverted!") || text.includes("Restored!") || text.includes("Revertido") || text.includes("Annulé") || text.includes("Zurückgesetzt") || text.includes("वापस")) {
+      undoBtn.textContent = getTranslation("undoBtnSuccess", lang);
+    } else {
+      undoBtn.textContent = getTranslation("undoBtn", lang);
+    }
+  }
+  const simplifyBtn = btn("ppSimplifyBtn");
+  if (simplifyBtn) {
+    const text = simplifyBtn.textContent || "";
+    if (text.includes("Stop") || text.includes("Detener") || text.includes("Arrêter") || text.includes("stoppen") || text.includes("रोकें")) {
+      simplifyBtn.textContent = getTranslation("simplifyBtnActive", lang);
+    } else {
+      simplifyBtn.textContent = getTranslation("simplifyBtn", lang);
+    }
+  }
+}
+
+// Language Selector Handler
+const extensionLangSelect = sel("ppExtensionLanguageSelect");
+extensionLangSelect?.addEventListener("change", () => {
+  if (!extensionLangSelect) return;
+  const lang = extensionLangSelect.value;
+  chrome.storage.local.set({ extensionLanguage: lang }, () => {
+    applyLanguage(lang);
+    toTab({ type: "EXTENSION_LANGUAGE_CHANGED", language: lang });
+    chrome.runtime.sendMessage({ type: "EXTENSION_LANGUAGE_CHANGED", language: lang }).catch(() => {});
+  });
+});
+
+chrome.storage.local.get(["extensionLanguage"], r => {
+  const savedLang = r.extensionLanguage || "en";
+  const selectEl = sel("ppExtensionLanguageSelect");
+  if (selectEl) selectEl.value = savedLang;
+  applyLanguage(savedLang);
 });

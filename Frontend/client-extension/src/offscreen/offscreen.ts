@@ -69,8 +69,10 @@ function initRecognition() {
         if (isListening && !isSpeechRecognitionRunning) {
           try {
             console.log("🎙️ DEBUG [offscreen.ts] recognition.start() [auto-restart]");
+            isSpeechRecognitionRunning = true;
             recognition.start();
           } catch (e) {
+            isSpeechRecognitionRunning = false;
             console.error("🎙️ DEBUG [offscreen.ts] Error auto-restarting recognition:", e);
           }
         }
@@ -97,8 +99,10 @@ chrome.runtime.onMessage.addListener((message) => {
     if (recognition && !isSpeechRecognitionRunning) {
       try {
         console.log("🎙️ DEBUG [offscreen.ts] calling recognition.start()");
+        isSpeechRecognitionRunning = true;
         recognition.start();
       } catch (e) {
+        isSpeechRecognitionRunning = false;
         console.error("🎙️ DEBUG [offscreen.ts] Error starting recognition:", e);
       }
     } else {

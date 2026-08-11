@@ -341,29 +341,45 @@ def check_open_website_command(command: str) -> Optional[VoiceCommandResponse]:
     target = None
     
     # English prefixes
-    eng_prefix_pattern = r'^(?:open\s+the\s+|open\s+|go\s+to\s+the\s+|go\s+to\s+|launch\s+|navigate\s+to\s+the\s+|navigate\s+to\s+|show\s+me\s+the\s+|show\s+me\s+)(.+)$'
+    eng_prefix_pattern = r'^(?:please\s+open\s+|can\s+you\s+open\s+|take\s+me\s+to\s+|open\s+the\s+|open\s+|go\s+to\s+the\s+|go\s+to\s+|launch\s+|navigate\s+to\s+the\s+|navigate\s+to\s+|show\s+me\s+the\s+|show\s+me\s+)(.+)$'
     m = re.match(eng_prefix_pattern, cmd)
     if m:
         target = m.group(1).strip()
     else:
-        # Hindi / Hinglish prefixes
-        hindi_prefixes = ["kholo ", "chalao ", "open karo ", "chalu karo "]
+        # Hindi / Hinglish prefixes (English script)
+        hindi_prefixes = ["kholo ", "chalao ", "open karo ", "chalu karo ", "ko open karo ", "ko kholo "]
         for pref in hindi_prefixes:
             if cmd.startswith(pref):
                 target = cmd[len(pref):].strip()
                 break
                 
-        # Hindi / Hinglish suffixes
+        # Hindi / Hinglish prefixes (Devanagari script)
         if not target:
-            hindi_suffixes = [" kholo", " khol", " open karo", " open karna", " chalao", " kholna", " chalu karo", " khol do", " kholo na"]
+            devanagari_prefixes = ["खोलो ", "चलाओ ", "ओपन करो ", "चालू करो ", "खोलना ", "को खोलो ", "को ओपन करो "]
+            for pref in devanagari_prefixes:
+                if cmd.startswith(pref):
+                    target = cmd[len(pref):].strip()
+                    break
+
+        # Hindi / Hinglish suffixes (English script)
+        if not target:
+            hindi_suffixes = [" kholo", " khol", " open karo", " open karna", " chalao", " kholna", " chalu karo", " khol do", " kholo na", " ko open karo", " ko kholo", " ko khol do"]
             for suff in hindi_suffixes:
                 if cmd.endswith(suff):
                     target = cmd[:-len(suff)].strip()
                     break
+                    
+        # Hindi / Hinglish suffixes (Devanagari script)
+        if not target:
+            devanagari_suffixes = [" खोलो", " खोल", " ओपन करो", " चालू करो", " खोल दो", " खोलना", " खोलो ना", " को खोलो", " को खोल दो", " को चालू करो"]
+            for suff in devanagari_suffixes:
+                if cmd.endswith(suff):
+                    target = cmd[:-len(suff)].strip()
+                    break
 
-    # If no prefix/suffix matched, but it contains "open" or "kholo" inside
+    # If no prefix/suffix matched, but it contains "open" or "kholo" or "खोलो" inside
     if not target:
-        for verb in ["open ", "kholo ", "go to "]:
+        for verb in ["open ", "kholo ", "go to ", "खोलो ", "खोल ", " chalao", " chalu karo"]:
             if verb in cmd:
                 parts = cmd.split(verb, 1)
                 if len(parts) > 1 and parts[1].strip():
@@ -406,9 +422,68 @@ def check_open_website_command(command: str) -> Optional[VoiceCommandResponse]:
         return None
 
     # Clean the target: remove extra spaces or dots
-    target_clean = target.replace(" ", "").replace("-", "").replace("_", "").replace(".", "")
+    target_clean = target.replace(" ", "").replace("-", "").replace("_", "").replace(".", "").lower()
     if not target_clean:
         return None
+
+    # Transliterate Devanagari target if it contains Hindi script characters
+    is_devanagari = any(ord(char) >= 0x0900 and ord(char) <= 0x097F for char in target_clean)
+    if is_devanagari:
+        def _transliterate(text: str) -> str:
+            char_map = {
+                'अ': 'a', 'आ': 'aa', 'इ': 'i', 'ई': 'ee', 'उ': 'u', 'ऊ': 'oo', 'ऋ': 'ri',
+                'ए': 'e', 'ऐ': 'ai', 'ओ': 'o', 'औ': 'au', 'अं': 'an', 'अः': 'ah',
+                'क': 'k', 'ख': 'kh', 'ग': 'g', 'घ': 'gh', 'ङ': 'n',
+                'च': 'ch', 'छ': 'chh', 'ज': 'j', 'झ': 'jh', 'ञ': 'n',
+                'ट': 't', 'ठ': 'th', 'ड': 'd', 'ढ': 'dh', 'ण': 'n',
+                'त': 't', 'थ': 'th', 'द': 'd', 'ध': 'dh', 'न': 'n',
+                'प': 'p', 'फ': 'ph', 'ब': 'b', 'भ': 'bh', 'म': 'm',
+                'य': 'y', 'र': 'r', 'ल': 'l', 'व': 'v', 'श': 'sh', 'ष': 'sh', 'स': 's', 'ह': 'h',
+                'क्ष': 'ksh', 'त्र': 'tr', 'ज्ञ': 'gy',
+                'ा': 'a', 'ि': 'i', 'ी': 'ee', 'ु': 'u', 'ू': 'oo', 'ृ': 'ri',
+                'े': 'e', 'ै': 'ai', 'ो': 'o', 'ौ': 'au', 'ं': 'n', 'ः': 'h', 'ँ': 'n',
+                '़': '', '्': ''
+            }
+            res_list = []
+            for c in text:
+                if c in char_map:
+                    res_list.append(char_map[c])
+                elif c.isalnum() or c == '-':
+                    res_list.append(c)
+            return "".join(res_list)
+
+        transliterated = _transliterate(target_clean)
+        if transliterated:
+            target_clean = transliterated
+
+    DEVANAGARI_WEBSITES = {
+        "मीशो": "meesho",
+        "मीषो": "meesho",
+        "अमेज़न": "amazon",
+        "अमेजन": "amazon",
+        "एमेझॉन": "amazon",
+        "फ्लिपकार्ट": "flipkart",
+        "इंस्टाग्राम": "instagram",
+        "इन्स्टाग्राम": "instagram",
+        "यूट्यूब": "youtube",
+        "युट्युब": "youtube",
+        "मिंत्रा": "myntra",
+        "मिन्त्रा": "myntra",
+        "उबर": "uber",
+        "ऊबर": "uber",
+        "रैपिडो": "rapido",
+        "गूगल": "google",
+        "गुगल": "google",
+        "फेसबुक": "facebook",
+        "व्हाट्सएप": "whatsapp",
+        "ट्विटर": "twitter",
+        "लिंक्डइन": "linkedin",
+        "नेटफ्लिक्स": "netflix",
+        "जीमेल": "gmail"
+    }
+
+    if target_clean in DEVANAGARI_WEBSITES:
+        target_clean = DEVANAGARI_WEBSITES[target_clean]
 
     # Comprehensive website dictionary mapping clean names to correct URLs and friendly display labels
     WEBSITE_MAP = {
@@ -627,8 +702,15 @@ def check_open_website_command(command: str) -> Optional[VoiceCommandResponse]:
 def local_fallback_parser(command: str) -> VoiceCommandResponse:
     """Fallback rule-based parser when Gemini API is unavailable or fails."""
     cmd = command.lower().strip()
-    logger.info(f"Using rule-based fallback parser for command: '{command}'")
-    
+    # 0a. video play commands
+    has_video_word = "video" in cmd or "वीडियो" in cmd or "ਵੀਡੀਓ" in cmd
+    has_play_action = any(k in cmd for k in [
+        "play", "open", "click", "run", "start", "chalao", "kholo", "chalu", "chalaye",
+        "चलाओ", "खोलो", "खोल", "ਪਲੇ", "ਖੋਲੋ"
+    ])
+    if has_video_word and has_play_action:
+        return VoiceCommandResponse(action="click_video", value="first", speak="Playing video")
+
     # 1. scroll commands
     if any(k in cmd for k in ["go to top", "top pe jao", "shuruaat", "beginning", "scroll to top"]):
         return VoiceCommandResponse(action="scroll_top", speak="Scrolling to top")

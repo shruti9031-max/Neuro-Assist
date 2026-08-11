@@ -3,6 +3,7 @@ import { NeuroWebsiteSimplifier } from "./websiteSimplifier";
 import { NeuroChatWidget } from "./chatWidget";
 import { NeuroCopilotExecutor } from "./copilotExecutor";
 import { AccessibilityAnalyzer } from "./accessibilityAnalyzer";
+import { getTranslation } from "../utils/translations";
 
 class NeuroAssistUltimateFrontend {
   private fabTrigger: HTMLDivElement | null = null;
@@ -13,6 +14,7 @@ class NeuroAssistUltimateFrontend {
   private websiteSimplifier: NeuroWebsiteSimplifier;
   private chatWidget!: NeuroChatWidget;
   private copilotExecutor: NeuroCopilotExecutor;
+  private currentLanguage: string = "en";
 
   // --- DUMMY FUNCTIONS FOR TEAMMATES --- //
   public startGestureTracking(): void {
@@ -60,6 +62,13 @@ class NeuroAssistUltimateFrontend {
     this.listenForPopupTriggers();
     this.makeDockDraggable();
     this.bindVoiceEngineActions();
+
+    try {
+      chrome.storage.local.get(["extensionLanguage"], (r) => {
+        const lang = r.extensionLanguage || "en";
+        this.applyLanguage(lang);
+      });
+    } catch { /* ignore */ }
   }
 
   private injectAdvancedStyles() {
@@ -571,7 +580,7 @@ class NeuroAssistUltimateFrontend {
       </div>
 
       <div class="na-dock-workspace" id="spaceSignMode">
-        <div class="na-workspace-title">✋ Local Edge Sign Translator & Tracking Parameters</div>
+        <div class="na-workspace-title" id="naSignWorkspaceTitle">✋ Local Edge Sign Translator & Tracking Parameters</div>
         <div style="display: flex !important; gap: 14px !important; align-items: flex-start !important;">
           <!-- Camera Feed container -->
           <div style="flex: 1 !important; border: 1px solid #cbd5e1 !important; border-radius: 12px !important; overflow: hidden !important; background: #000000 !important; height: 180px !important; display: flex !important; align-items: center !important; justify-content: center !important; position: relative !important;">
@@ -581,14 +590,14 @@ class NeuroAssistUltimateFrontend {
           <!-- Settings / Detected action card -->
           <div style="flex: 1 !important; display: flex !important; flex-direction: column !important; gap: 10px !important;">
             <div style="background: white !important; border: 1px solid #e2e8f0 !important; padding: 12px !important; border-radius: 12px !important; display: flex !important; flex-direction: column !important; gap: 4px !important;">
-              <span style="font-size: 11px !important; font-weight: 700 !important; color: #64748b !important; text-transform: uppercase !important;">Gesture Status</span>
+              <span id="naGestureStatusLabel" style="font-size: 11px !important; font-weight: 700 !important; color: #64748b !important; text-transform: uppercase !important;">Gesture Status</span>
               <span id="naGestureActionBadge" style="font-size: 16px !important; font-weight: 800 !important; color: #3b82f6 !important;">None</span>
             </div>
             <div style="background: white !important; border: 1px solid #e2e8f0 !important; padding: 12px !important; border-radius: 12px !important;">
               <div style="display: flex !important; justify-content: space-between !important; align-items: center !important;">
                 <div class="na-setting-info" style="max-width: 75% !important;">
-                  <span class="na-setting-label" style="font-size: 11px !important; font-weight: bold !important;">Active DOM Actions</span>
-                  <span class="na-setting-desc" style="font-size: 9px !important; color: #64748b !important;">Allows hand signs to trigger SCROLL and CLICK commands.</span>
+                  <span class="na-setting-label" id="naGestureDomLabel" style="font-size: 11px !important; font-weight: bold !important;">Active DOM Actions</span>
+                  <span class="na-setting-desc" id="naGestureDomDesc" style="font-size: 9px !important; color: #64748b !important;">Allows hand signs to trigger SCROLL and CLICK commands.</span>
                 </div>
                 <label class="na-toggle-switch" style="transform: scale(0.75) !important;"><input type="checkbox" id="naGestureEnableToggle" checked><span class="na-toggle-slider"></span></label>
               </div>
@@ -598,12 +607,12 @@ class NeuroAssistUltimateFrontend {
       </div>
 
       <div class="na-dock-workspace" id="spaceVoiceMode">
-        <div class="na-workspace-title" style="margin-bottom: 12px !important;">🎙️ Multilingual Vocal Navigation</div>
+        <div class="na-workspace-title" id="naVoiceWorkspaceTitle" style="margin-bottom: 12px !important;">🎙️ Multilingual Vocal Navigation</div>
         <div class="na-voice-container">
           
           <!-- View A: Microphone Connected (Active by default, but hidden if no mic is found) -->
           <div id="naVoiceActiveView" style="display: flex !important; flex-direction: column !important; gap: 14px !important;">
-            <div class="na-mic-status-badge na-mic-ready">
+            <div class="na-mic-status-badge na-mic-ready" id="naVoiceMicBadge">
               <span class="na-mic-status-dot"></span>
               Microphone Ready
             </div>
@@ -625,15 +634,15 @@ class NeuroAssistUltimateFrontend {
             <div class="na-voice-steps">
               <div class="na-voice-step active" id="naVoiceStepListening">
                 <span class="na-voice-step-dot">1</span>
-                <span>Listening</span>
+                <span id="naVoiceStepListeningLabel">Listening</span>
               </div>
               <div class="na-voice-step" id="naVoiceStepProcessing">
                 <span class="na-voice-step-dot">2</span>
-                <span>Processing</span>
+                <span id="naVoiceStepProcessingLabel">Processing</span>
               </div>
               <div class="na-voice-step" id="naVoiceStepExecuted">
                 <span class="na-voice-step-dot">3</span>
-                <span>Executed</span>
+                <span id="naVoiceStepExecutedLabel">Executed</span>
               </div>
             </div>
 
@@ -646,8 +655,8 @@ class NeuroAssistUltimateFrontend {
           <!-- View B: Microphone Missing (Hidden by default, shown if no mic) -->
           <div id="naVoiceMissingView" style="display: none !important;">
             <div class="na-voice-card-missing">
-              <div class="na-voice-card-missing-title">⚠️ Microphone Not Detected</div>
-              <p class="na-voice-card-missing-desc">
+              <div class="na-voice-card-missing-title" id="naVoiceNoMicTitle">⚠️ Microphone Not Detected</div>
+              <p class="na-voice-card-missing-desc" id="naVoiceNoMicDesc">
                 We couldn't detect any audio input hardware. Please plug in a microphone, check your system privacy settings, or use the developer text simulator below.
               </p>
               <div class="na-voice-card-btn-row">
@@ -661,7 +670,7 @@ class NeuroAssistUltimateFrontend {
           <!-- Collapsible Developer Testing Section -->
           <div style="border-top: 1px solid #e2e8f0 !important; padding-top: 8px !important; display: flex !important; flex-direction: column !important;">
             <button class="na-voice-dev-toggle" id="naVoiceDevToggle">
-              <span>▶</span> Developer Simulator Tools
+              <span id="naVoiceDevArrow">▶</span> Developer Simulator Tools
             </button>
             <div class="na-voice-dev-panel" id="naVoiceDevPanel">
               <div style="display: flex !important; gap: 8px !important; align-items: center !important;">
@@ -675,18 +684,18 @@ class NeuroAssistUltimateFrontend {
       </div>
 
       <div class="na-dock-workspace" id="spaceVisualMode">
-        <div class="na-workspace-title">🎨 AI Cognitive Refinement & Layout Customizer</div>
+        <div class="na-workspace-title" id="naVisualWorkspaceTitle">🎨 AI Cognitive Refinement & Layout Customizer</div>
         <div class="na-control-grid" style="gap: 8px !important;">
           
           <!-- Simplifier & Dyslexia Checkboxes side-by-side -->
           <div style="display: grid !important; grid-template-columns: 1fr 1fr !important; gap: 8px !important;">
             <div style="display: flex !important; align-items: center !important; justify-content: space-between !important; background: #ffffff !important; border: 1px solid #e2e8f0 !important; padding: 6px 10px !important; border-radius: 10px !important;">
-              <span style="font-size: 11px !important; font-weight: 700 !important; color: #334155 !important;">AI Website Simplifier</span>
+              <span id="naSimplifierLabel" style="font-size: 11px !important; font-weight: 700 !important; color: #334155 !important;">AI Website Simplifier</span>
               <label class="na-toggle-switch" style="transform: scale(0.8) !important;"><input type="checkbox" id="naAiSimplifierCheckbox"><span class="na-toggle-slider"></span></label>
             </div>
             
             <div style="display: flex !important; align-items: center !important; justify-content: space-between !important; background: #ffffff !important; border: 1px solid #e2e8f0 !important; padding: 6px 10px !important; border-radius: 10px !important;">
-              <span style="font-size: 11px !important; font-weight: 700 !important; color: #334155 !important;">Dyslexia Font</span>
+              <span id="naDyslexiaLabel" style="font-size: 11px !important; font-weight: 700 !important; color: #334155 !important;">Dyslexia Font</span>
               <label class="na-toggle-switch" style="transform: scale(0.8) !important;"><input type="checkbox" id="naDyslexiaCheckbox"><span class="na-toggle-slider"></span></label>
             </div>
           </div>
@@ -695,7 +704,7 @@ class NeuroAssistUltimateFrontend {
           <div style="display: grid !important; grid-template-columns: 1fr 1fr 1fr !important; gap: 8px !important;">
             <!-- Font Size Button Group -->
             <div style="display: flex !important; flex-direction: column !important; align-items: center !important; gap: 4px !important; background: #ffffff !important; border: 1px solid #e2e8f0 !important; padding: 6px !important; border-radius: 10px !important;">
-              <span style="font-size: 10px !important; font-weight: 700 !important; color: #475569 !important; text-transform: uppercase !important;">Font Size</span>
+              <span id="naFontSizeLabel" style="font-size: 10px !important; font-weight: 700 !important; color: #475569 !important; text-transform: uppercase !important;">Font Size</span>
               <div style="display: flex !important; align-items: center !important; gap: 6px !important;">
                 <button id="btnFontSizeDec" style="width: 22px !important; height: 22px !important; border-radius: 6px !important; border: 1px solid #cbd5e1 !important; background: #f1f5f9 !important; font-weight: bold !important; cursor: pointer !important; padding: 0 !important; display: flex !important; align-items: center !important; justify-content: center !important; font-size: 14px !important;">-</button>
                 <span id="lblFontSize" style="font-size: 11px !important; font-weight: 800 !important; color: #3b82f6 !important; min-width: 32px !important; text-align: center !important;">100%</span>
@@ -705,7 +714,7 @@ class NeuroAssistUltimateFrontend {
 
             <!-- Line Height Button Group -->
             <div style="display: flex !important; flex-direction: column !important; align-items: center !important; gap: 4px !important; background: #ffffff !important; border: 1px solid #e2e8f0 !important; padding: 6px !important; border-radius: 10px !important;">
-              <span style="font-size: 10px !important; font-weight: 700 !important; color: #475569 !important; text-transform: uppercase !important;">Line Spacing</span>
+              <span id="naLineSpacingLabel" style="font-size: 10px !important; font-weight: 700 !important; color: #475569 !important; text-transform: uppercase !important;">Line Spacing</span>
               <div style="display: flex !important; align-items: center !important; gap: 6px !important;">
                 <button id="btnLineHeightDec" style="width: 22px !important; height: 22px !important; border-radius: 6px !important; border: 1px solid #cbd5e1 !important; background: #f1f5f9 !important; font-weight: bold !important; cursor: pointer !important; padding: 0 !important; display: flex !important; align-items: center !important; justify-content: center !important; font-size: 14px !important;">-</button>
                 <span id="lblLineHeight" style="font-size: 11px !important; font-weight: 800 !important; color: #3b82f6 !important; min-width: 28px !important; text-align: center !important;">1.5x</span>
@@ -715,7 +724,7 @@ class NeuroAssistUltimateFrontend {
 
             <!-- Letter Spacing Button Group -->
             <div style="display: flex !important; flex-direction: column !important; align-items: center !important; gap: 4px !important; background: #ffffff !important; border: 1px solid #e2e8f0 !important; padding: 6px !important; border-radius: 10px !important;">
-              <span style="font-size: 10px !important; font-weight: 700 !important; color: #475569 !important; text-transform: uppercase !important;">Letter Spacing</span>
+              <span id="naLetterSpacingLabel" style="font-size: 10px !important; font-weight: 700 !important; color: #475569 !important; text-transform: uppercase !important;">Letter Spacing</span>
               <div style="display: flex !important; align-items: center !important; gap: 6px !important;">
                 <button id="btnLetterSpacingDec" style="width: 22px !important; height: 22px !important; border-radius: 6px !important; border: 1px solid #cbd5e1 !important; background: #f1f5f9 !important; font-weight: bold !important; cursor: pointer !important; padding: 0 !important; display: flex !important; align-items: center !important; justify-content: center !important; font-size: 14px !important;">-</button>
                 <span id="lblLetterSpacing" style="font-size: 11px !important; font-weight: 800 !important; color: #3b82f6 !important; min-width: 28px !important; text-align: center !important;">0px</span>
@@ -728,7 +737,7 @@ class NeuroAssistUltimateFrontend {
           <div style="display: grid !important; grid-template-columns: 1fr 1fr 1fr !important; gap: 8px !important;">
             <!-- Contrast Theme -->
             <div style="display: flex !important; flex-direction: column !important; gap: 4px !important; background: #ffffff !important; border: 1px solid #e2e8f0 !important; padding: 6px !important; border-radius: 10px !important;">
-              <span style="font-size: 10px !important; font-weight: 700 !important; color: #475569 !important; text-transform: uppercase !important;">Contrast Theme</span>
+              <span id="naThemeLabel" style="font-size: 10px !important; font-weight: 700 !important; color: #475569 !important; text-transform: uppercase !important;">Contrast Theme</span>
               <select id="naContrastThemeSelect" style="padding: 2px 4px !important; font-size: 10px !important; border: 1px solid #cbd5e1 !important; border-radius: 6px !important; background: white !important; outline: none !important; width: 100% !important; color: #334155 !important;">
                 <option value="none">Default</option>
                 <option value="hc-dark">HC Dark</option>
@@ -739,7 +748,7 @@ class NeuroAssistUltimateFrontend {
 
             <!-- Color Blindness -->
             <div style="display: flex !important; flex-direction: column !important; gap: 4px !important; background: #ffffff !important; border: 1px solid #e2e8f0 !important; padding: 6px !important; border-radius: 10px !important;">
-              <span style="font-size: 10px !important; font-weight: 700 !important; color: #475569 !important; text-transform: uppercase !important;">Color-Blind</span>
+              <span id="naColorBlindLabel" style="font-size: 10px !important; font-weight: 700 !important; color: #475569 !important; text-transform: uppercase !important;">Color-Blind</span>
               <select id="naColorBlindSelect" style="padding: 2px 4px !important; font-size: 10px !important; border: 1px solid #cbd5e1 !important; border-radius: 6px !important; background: white !important; outline: none !important; width: 100% !important; color: #334155 !important;">
                 <option value="none">None</option>
                 <option value="protanopia">Protanopia</option>
@@ -750,7 +759,7 @@ class NeuroAssistUltimateFrontend {
 
             <!-- Contrast Factor -->
             <div style="display: flex !important; flex-direction: column !important; align-items: center !important; gap: 4px !important; background: #ffffff !important; border: 1px solid #e2e8f0 !important; padding: 6px !important; border-radius: 10px !important;">
-              <span style="font-size: 10px !important; font-weight: 700 !important; color: #475569 !important; text-transform: uppercase !important;">Contrast Level</span>
+              <span id="naContrastLabel" style="font-size: 10px !important; font-weight: 700 !important; color: #475569 !important; text-transform: uppercase !important;">Contrast Level</span>
               <div style="display: flex !important; align-items: center !important; gap: 6px !important;">
                 <button id="btnContrastDec" style="width: 22px !important; height: 22px !important; border-radius: 6px !important; border: 1px solid #cbd5e1 !important; background: #f1f5f9 !important; font-weight: bold !important; cursor: pointer !important; padding: 0 !important; display: flex !important; align-items: center !important; justify-content: center !important; font-size: 14px !important;">-</button>
                 <span id="lblContrast" style="font-size: 11px !important; font-weight: 800 !important; color: #3b82f6 !important; min-width: 32px !important; text-align: center !important;">100%</span>
@@ -761,7 +770,7 @@ class NeuroAssistUltimateFrontend {
 
           <!-- Compact Preview Box -->
           <div id="naLivePreviewBox" class="na-preview-content" style="padding: 8px 12px !important; background: #eff6ff !important; border: 1px dashed #bfdbfe !important; border-radius: 10px !important; max-height: 48px !important; overflow-y: auto !important; transition: all 0.2s !important; text-align: center !important;">
-            <p style="margin: 0 !important; font-size: 11px !important; line-height: 1.4 !important; color: #1e3a8a !important; transition: inherit !important;">
+            <p style="margin: 0 !important; font-size: 11px !important; line-height: 1.4 !important; color: #1e3a8a !important; transition: inherit !important;" id="naLivePreviewText">
               Real-time Preview: Spacing, font scale, contrast and visual theme apply here instantly.
             </p>
           </div>
@@ -770,17 +779,17 @@ class NeuroAssistUltimateFrontend {
       </div>
 
       <div class="na-dock-workspace" id="spaceAutomationMode">
-        <div class="na-workspace-title">🤖 AI Autonomous Copilot & Profile Memory</div>
+        <div class="na-workspace-title" id="naAutomationWorkspaceTitle">🤖 AI Autonomous Copilot & Profile Memory</div>
         <div class="na-voice-container" style="gap: 14px !important;">
           
           <div style="display: flex !important; flex-direction: column !important; gap: 8px !important; background: #ffffff !important; border: 1px solid #e2e8f0 !important; padding: 12px !important; border-radius: 12px !important;">
-            <div style="font-size: 12px !important; font-weight: 800 !important; color: #1e293b !important; text-transform: uppercase !important; letter-spacing: 0.05em !important;">✨ Form Autofill & Navigation Agent</div>
-            <span style="font-size: 11px !important; color: #64748b !important; line-height: 1.4 !important;">
+            <div id="naCopilotTitle" style="font-size: 12px !important; font-weight: 800 !important; color: #1e293b !important; text-transform: uppercase !important; letter-spacing: 0.05em !important;">✨ Form Autofill & Navigation Agent</div>
+            <span style="font-size: 11px !important; color: #64748b !important; line-height: 1.4 !important;" id="naCopilotDesc">
               Scans all fields across E-commerce, Jobs, Login, and Checkout pages, generating predictions mapped against your Profile Memory with permission approval overlay.
             </span>
             
             <div style="display: flex !important; flex-direction: column !important; gap: 4px !important; margin-bottom: 4px !important;">
-              <span style="font-size: 10px !important; font-weight: 700 !important; color: #475569 !important;">Goal Instruction / Custom Prompt:</span>
+              <span style="font-size: 10px !important; font-weight: 700 !important; color: #475569 !important;" id="naCopilotGoalLabel">Goal Instruction / Custom Prompt:</span>
               <input type="text" id="naCopilotPrompt" placeholder="e.g. Autofill job application, or search mouse and add to cart..." style="width: 100% !important; padding: 8px 12px !important; border: 1px solid #cbd5e1 !important; border-radius: 8px !important; font-size: 11px !important; outline: none !important; color: #0f172a !important; background: #ffffff !important;">
             </div>
 
@@ -792,7 +801,7 @@ class NeuroAssistUltimateFrontend {
 
           <!-- User Profile Memory Quick Editor -->
           <div style="display: flex !important; flex-direction: column !important; gap: 8px !important; background: #ffffff !important; border: 1px solid #e2e8f0 !important; padding: 12px !important; border-radius: 12px !important;">
-            <div style="font-size: 11px !important; font-weight: 800 !important; color: #0f172a !important; text-transform: uppercase !important;">👤 Saved Profile Memory</div>
+            <div style="font-size: 11px !important; font-weight: 800 !important; color: #0f172a !important; text-transform: uppercase !important;" id="naCopilotProfileTitle">👤 Saved Profile Memory</div>
             <div style="display: grid !important; grid-template-columns: 1fr 1fr !important; gap: 6px !important;">
               <input type="text" id="naProfName" placeholder="Full Name" style="padding: 5px 8px !important; font-size: 11px !important; border: 1px solid #cbd5e1 !important; border-radius: 6px !important;">
               <input type="text" id="naProfEmail" placeholder="Email Address" style="padding: 5px 8px !important; font-size: 11px !important; border: 1px solid #cbd5e1 !important; border-radius: 6px !important;">
@@ -822,7 +831,7 @@ class NeuroAssistUltimateFrontend {
       </div>
 
       <div class="na-card-footer">
-        <div class="na-passport-badge">🛡️ Global Accessibility Passport: Active</div>
+        <div class="na-passport-badge" id="naPassportBadge">🛡️ Global Accessibility Passport: Active</div>
         <button class="na-ai-simplifier-btn" id="naAiSimplifierTriggerBtn" data-active="false">✨ AI WEBSITE SIMPLIFIER</button>
       </div>
     `;
@@ -1259,7 +1268,9 @@ class NeuroAssistUltimateFrontend {
 
   private listenForPopupTriggers() {
     chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
-      if (message.type === "ANALYZE_ACCESSIBILITY") {
+      if (message.type === "EXTENSION_LANGUAGE_CHANGED") {
+        this.applyLanguage(message.language);
+      } else if (message.type === "ANALYZE_ACCESSIBILITY") {
         try {
           const audit = AccessibilityAnalyzer.analyzeDocument(document);
           sendResponse(audit);
@@ -1859,6 +1870,165 @@ class NeuroAssistUltimateFrontend {
 
   private toggleWebcamTracking(enabled: boolean) {
     console.log("Gesture tracking toggled:", enabled, "— camera & tracking disabled until teammate's backend module is merged.");
+  }
+
+  private applyLanguage(lang: string) {
+    this.currentLanguage = lang;
+    if (this.chatWidget) {
+      this.chatWidget.setLanguage(lang);
+    }
+
+    const docEl = (id: string) => document.getElementById(id);
+    const setText = (id: string, key: string) => {
+      const elObj = docEl(id);
+      if (elObj) elObj.textContent = getTranslation(key as any, lang);
+    };
+    const setPlaceholder = (id: string, key: string) => {
+      const elObj = docEl(id) as HTMLInputElement | null;
+      if (elObj) elObj.placeholder = getTranslation(key as any, lang);
+    };
+
+    // Header Mode Buttons
+    setText("btnSignMode", "modGesture");
+    setText("btnVoiceMode", "modVoice");
+    setText("btnVisualMode", "modVisual");
+    setText("btnAutomationMode", "wsCopilotTitle");
+    setText("btnChatMode", "chatTitle");
+
+    // Workspace Titles
+    setText("naSignWorkspaceTitle", "wsGestureTitle");
+    setText("naVoiceWorkspaceTitle", "wsVoiceTitle");
+    setText("naVisualWorkspaceTitle", "wsVisualTitle");
+    setText("naAutomationWorkspaceTitle", "wsCopilotTitle");
+
+    // Gesture Workspace
+    setText("naGestureStatusLabel", "gestureStatusLabel");
+    const gestureActionBadge = docEl("naGestureActionBadge");
+    if (gestureActionBadge) {
+      const txt = gestureActionBadge.textContent || "";
+      if (["None", "Ninguno", "Aucun", "Keine", "कोई नहीं"].includes(txt)) {
+        gestureActionBadge.textContent = getTranslation("gestureStatusNone", lang);
+      } else if (["Running", "Ejecutando", "Actif", "Aktiv", "चालू है"].includes(txt)) {
+        gestureActionBadge.textContent = getTranslation("gestureStatusRunning", lang);
+      }
+    }
+    setText("naGestureDomLabel", "gestureDomLabel");
+    setText("naGestureDomDesc", "gestureDomDesc");
+
+    // Voice Workspace
+    const micBadge = docEl("naVoiceMicBadge");
+    if (micBadge) {
+      const isOk = micBadge.classList.contains("na-mic-ready");
+      micBadge.innerHTML = `<span class="na-mic-status-dot"></span> ` + (isOk ? getTranslation("micReady", lang) : getTranslation("noMic", lang));
+    }
+    setText("naVoiceStepListeningLabel", "stepListen");
+    setText("naVoiceStepProcessingLabel", "stepProcess");
+    setText("naVoiceStepExecutedLabel", "stepExecuted");
+
+    const voiceTranscript = docEl("naVoiceTranscript");
+    if (voiceTranscript) {
+      const text = voiceTranscript.textContent || "";
+      if (text.includes("Say a command") || text.includes("Diga un") || text.includes("Dites une") || text.includes("Sagen Sie") || text.includes("कोई कमांड")) {
+        voiceTranscript.textContent = getTranslation("transcriptSayCmd", lang);
+      } else if (text.includes("Listening… speak now") || text.includes("Escuchando...") || text.includes("Écoute en cours") || text.includes("Hören...") || text.includes("सुन रहा है")) {
+        voiceTranscript.textContent = getTranslation("transcriptListening", lang);
+      } else if (text.includes("Processing…") || text.includes("Procesando…") || text.includes("Traitement…") || text.includes("Verarbeiten…") || text.includes("प्रोसेस किया जा रहा है")) {
+        voiceTranscript.textContent = getTranslation("transcriptProcessing", lang);
+      } else if (text.includes("Executed:") || text.includes("Ejecutado:") || text.includes("Exécuté:") || text.includes("Ausgeführt:") || text.includes("निष्पादित:")) {
+        const parts = text.split('"');
+        const cmd = parts.length > 1 ? parts[1] : "";
+        voiceTranscript.textContent = `${getTranslation("transcriptExecutedPrefix", lang)}"${cmd}"`;
+      }
+    }
+
+    setText("naVoiceNoMicTitle", "noMicTitle");
+    setText("naVoiceNoMicDesc", "noMicDesc");
+    setText("naVoiceBtnRetry", "retryBtn");
+    setText("naVoiceBtnSettings", "chatSettingsTitle");
+    setText("naVoiceBtnSimulateBypass", "simBypassBtn");
+
+    const devToggle = docEl("naVoiceDevToggle");
+    if (devToggle) {
+      const isExpanded = devToggle.textContent?.includes("▼");
+      devToggle.innerHTML = `<span id="naVoiceDevArrow">${isExpanded ? "▼" : "▶"}</span> ` + getTranslation("devToggleTitle", lang);
+    }
+    setPlaceholder("naVoiceSimInput", "devSimInputPlaceholder");
+    setText("naVoiceSimBtn", "devSimSend");
+
+    // Visual Workspace
+    setText("naSimplifierLabel", "simplifierLabel");
+    setText("naDyslexiaLabel", "dyslexiaLabel");
+    setText("naFontSizeLabel", "fontSizeLabel");
+    setText("naLineSpacingLabel", "lineSpacingLabel");
+    setText("naLetterSpacingLabel", "lettersLabel");
+    setText("naThemeLabel", "themeLabel");
+
+    const contrastThemeSelect = docEl("naContrastThemeSelect") as HTMLSelectElement | null;
+    if (contrastThemeSelect) {
+      contrastThemeSelect.options[0].text = getTranslation("themeDefault", lang);
+      contrastThemeSelect.options[1].text = getTranslation("themeHcDark", lang);
+      contrastThemeSelect.options[2].text = getTranslation("themeHcLight", lang);
+      contrastThemeSelect.options[3].text = getTranslation("themeGrayscale", lang);
+    }
+
+    setText("naColorBlindLabel", "colorBlindLabel");
+    const colorBlindSelect = docEl("naColorBlindSelect") as HTMLSelectElement | null;
+    if (colorBlindSelect) {
+      colorBlindSelect.options[0].text = getTranslation("cbNone", lang);
+      colorBlindSelect.options[1].text = getTranslation("cbProtan", lang);
+      colorBlindSelect.options[2].text = getTranslation("cbDeuter", lang);
+      colorBlindSelect.options[3].text = getTranslation("cbTritan", lang);
+    }
+    setText("naContrastLabel", "contrastLabel");
+    setText("naLivePreviewText", "visualPreviewText");
+
+    // Copilot Workspace
+    setText("naCopilotTitle", "copilotAutofillTitle");
+    setText("naCopilotDesc", "copilotAutofillDesc");
+    setText("naCopilotGoalLabel", "copilotGoalLabel");
+    setPlaceholder("naCopilotPrompt", "copilotGoalPlaceholder");
+    setText("naBtnTriggerCopilot", "copilotScanBtn");
+    setText("naBtnTriggerAutonomousNav", "copilotExecBtn");
+    setText("naCopilotProfileTitle", "copilotProfTitle");
+
+    setPlaceholder("naProfName", "profNamePh");
+    setPlaceholder("naProfEmail", "profEmailPh");
+    setPlaceholder("naProfPhone", "profPhonePh");
+    setPlaceholder("naProfDob", "profDobPh");
+    setPlaceholder("naProfAddress", "profAddressPh");
+    setPlaceholder("naProfCity", "profCityPh");
+    setPlaceholder("naProfState", "profStatePh");
+    setPlaceholder("naProfCountry", "profCountryPh");
+    setPlaceholder("naProfPostalCode", "profPostalPh");
+    setPlaceholder("naProfGender", "profGenderPh");
+
+    setText("naSaveProfileBtn", "profSaveBtn");
+    setText("naResetProfileBtn", "profResetBtn");
+    setText("naDeleteProfileBtn", "profDeleteBtn");
+
+    const copilotStatusText = docEl("naCopilotStatusText");
+    if (copilotStatusText) {
+      const text = copilotStatusText.textContent || "";
+      if (text.includes("idle") || text.includes("inactivo") || text.includes("inactif") || text.includes("निष्क्रिय")) {
+        copilotStatusText.textContent = getTranslation("copilotStatusIdle", lang);
+      } else if (text.includes("Scanning page") || text.includes("Escaneando") || text.includes("Analyse") || text.includes("Scanne") || text.includes("स्कैन")) {
+        copilotStatusText.textContent = getTranslation("copilotStatusScanning", lang);
+      } else if (text.includes("triggered") || text.includes("activado") || text.includes("déclenché") || text.includes("gestartet") || text.includes("शुरू")) {
+        copilotStatusText.textContent = getTranslation("copilotStatusTriggered", lang);
+      } else if (text.includes("Planning") || text.includes("Planificando") || text.includes("Planification") || text.includes("Plane") || text.includes("योजना")) {
+        copilotStatusText.textContent = getTranslation("copilotStatusPlanning", lang);
+      } else if (text.includes("completed") || text.includes("completado") || text.includes("complété") || text.includes("abgeschlossen") || text.includes("पूरी हुई")) {
+        copilotStatusText.textContent = getTranslation("copilotStatusCompleted", lang);
+      }
+    }
+
+    // Footer
+    setText("naPassportBadge", "footerBadge");
+    const simplifyBtn = docEl("naAiSimplifierTriggerBtn");
+    if (simplifyBtn) {
+      const isActive = simplifyBtn.getAttribute("data-active") === "true";
+      simplifyBtn.textContent = getTranslation(isActive ? "simplifyBtnActive" : "simplifyBtn", lang);
+    }
   }
 }
 
